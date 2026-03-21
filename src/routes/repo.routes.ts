@@ -5,6 +5,7 @@ import { AppDataSource } from '../db/data-source';
 import { Repo } from '../entities/Repo.entity';
 import { encrypt } from '../lib/encryption';
 import { AppError } from '../lib/errors';
+import { SyncService } from '../services/sync.service';
 
 const router = Router();
 const repoRepository = () => AppDataSource.getRepository(Repo);
@@ -111,6 +112,26 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     }
 
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/repos/:id/sync — Trigger sync for a repo
+router.post('/:id/sync', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    // Verify repo exists
+    const repo = await repoRepository().findOneBy({ id });
+    if (!repo) {
+      throw new AppError('Repo not found', 404, 'NOT_FOUND');
+    }
+
+    const syncService = new SyncService();
+    const synced = await syncService.syncRepo(id);
+
+    res.json({ synced });
   } catch (err) {
     next(err);
   }

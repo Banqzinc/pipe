@@ -1,0 +1,259 @@
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { AppDataSource } from '../db/data-source';
+import { PullRequest } from '../entities/PullRequest.entity';
+import { ReviewRun } from '../entities/ReviewRun.entity';
+import { Finding } from '../entities/Finding.entity';
+import { ReviewPost } from '../entities/ReviewPost.entity';
+import { PrStatus, FindingStatus } from '../entities/enums';
+import { AppError } from '../lib/errors';
+
+const router = Router();
+
+// GET /api/prs — List PRs with filters
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    const runRepo = AppDataSource.getRepository(ReviewRun);
+    const findingRepo = AppDataSource.getRepository(Finding);
+    const postRepo = AppDataSource.getRepository(ReviewPost);
+
+    const { status, repo_id, filter } = req.query as {
+      status?: string;
+      repo_id?: string;
+      filter?: string;
+    };
+
+    // Build query
+    const qb = prRepo
+      .createQueryBuilder('pr')
+      .leftJoinAndSelect('pr.repo', 'repo')
+      .orderBy('pr.updated_at', 'DESC');
+
+    if (status) {
+      qb.andWhere('pr.status = :status', { status });
+    }
+
+    if (repo_id) {
+      qb.andWhere('pr.repo_id = :repo_id', { repo_id });
+    }
+
+    const prs = await qb.getMany();
+
+    // For each PR, get the latest run + findings count + has_post
+    const result = await Promise.all(
+      prs.map(async (pr) => {
+        // Get the latest run for this PR
+        const latestRun = await runRepo.findOne({
+          where: { pr_id: pr.id },
+          order: { created_at: 'DESC' },
+        });
+
+        let latestRunData: any = null;
+
+        if (latestRun) {
+          // Count findings by status
+          const findings = await findingRepo.find({
+            where: { run_id: latestRun.id },
+            select: ['status'],
+          });
+
+          const counts = {
+            total: findings.length,
+            pending: findings.filter((f) => f.status === FindingStatus.Pending).length,
+            accepted: findings.filter((f) => f.status === FindingStatus.Accepted).length,
+            rejected: findings.filter((f) => f.status === FindingStatus.Rejected).length,
+            posted: findings.filter((f) => f.status === FindingStatus.Posted).length,
+          };
+
+          const post = await postRepo.findOneBy({ run_id: latestRun.id });
+
+          latestRunData = {
+            id: latestRun.id,
+            status: latestRun.status,
+            is_self_review: latestRun.is_self_review,
+            risk_signals: latestRun.risk_signals,
+            findings_count: counts,
+            has_post: !!post,
+          };
+        }
+
+        return {
+          id: pr.id,
+          repo: {
+            id: pr.repo.id,
+            github_owner: pr.repo.github_owner,
+            github_name: pr.repo.github_name,
+          },
+          github_pr_number: pr.github_pr_number,
+          title: pr.title,
+          author: pr.author,
+          branch_name: pr.branch_name,
+          base_branch: pr.base_branch,
+          status: pr.status,
+          head_sha: pr.head_sha,
+          linear_ticket_id: pr.linear_ticket_id,
+          stack_id: pr.stack_id,
+          stack_position: pr.stack_position,
+          stack_size: pr.stack_size,
+          latest_run: latestRunData,
+          created_at: pr.created_at,
+          updated_at: pr.updated_at,
+        };
+      }),
+    );
+
+    // Apply filter after enrichment (needs latest_run info)
+    let filtered = result;
+    if (filter === 'needs_review') {
+      // No run or latest run incomplete
+      filtered = result.filter(
+        (pr) =>
+          !pr.latest_run ||
+          !['completed', 'partial'].includes(pr.latest_run.status),
+      );
+    } else if (filter === 'in_progress') {
+      // Latest run has pending findings
+      filtered = result.filter(
+        (pr) =>
+          pr.latest_run &&
+          pr.latest_run.findings_count.pending > 0,
+      );
+    } else if (filter === 'completed') {
+      // Latest run's findings all triaged (none pending)
+      filtered = result.filter(
+        (pr) =>
+          pr.latest_run &&
+          pr.latest_run.findings_count.total > 0 &&
+          pr.latest_run.findings_count.pending === 0,
+      );
+    }
+
+    res.json({ pull_requests: filtered });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/prs/:id — Single PR with run history
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    const runRepo = AppDataSource.getRepository(ReviewRun);
+    const findingRepo = AppDataSource.getRepository(Finding);
+    const id = req.params.id as string;
+
+    const pr = await prRepo.findOne({
+      where: { id },
+      relations: ['repo'],
+    });
+
+    if (!pr) {
+      throw new AppError('Pull request not found', 404, 'NOT_FOUND');
+    }
+
+    // Get all runs for this PR
+    const runs = await runRepo.find({
+      where: { pr_id: pr.id },
+      order: { created_at: 'DESC' },
+    });
+
+    const runsData = await Promise.all(
+      runs.map(async (run) => {
+        const findingsCount = await findingRepo.count({
+          where: { run_id: run.id },
+        });
+
+        return {
+          id: run.id,
+          status: run.status,
+          is_self_review: run.is_self_review,
+          head_sha: run.head_sha,
+          findings_count: findingsCount,
+          created_at: run.created_at,
+          completed_at: run.completed_at,
+        };
+      }),
+    );
+
+    res.json({
+      id: pr.id,
+      repo: {
+        id: pr.repo.id,
+        github_owner: pr.repo.github_owner,
+        github_name: pr.repo.github_name,
+      },
+      github_pr_number: pr.github_pr_number,
+      title: pr.title,
+      author: pr.author,
+      branch_name: pr.branch_name,
+      base_branch: pr.base_branch,
+      status: pr.status,
+      head_sha: pr.head_sha,
+      linear_ticket_id: pr.linear_ticket_id,
+      stack_id: pr.stack_id,
+      stack_position: pr.stack_position,
+      stack_size: pr.stack_size,
+      created_at: pr.created_at,
+      updated_at: pr.updated_at,
+      runs: runsData,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/prs/:id/stack — Sibling PRs in same stack
+router.get(
+  '/:id/stack',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const prRepo = AppDataSource.getRepository(PullRequest);
+      const id = req.params.id as string;
+
+      const pr = await prRepo.findOneBy({ id });
+
+      if (!pr) {
+        throw new AppError('Pull request not found', 404, 'NOT_FOUND');
+      }
+
+      if (!pr.stack_id) {
+        res.json({ stack: [] });
+        return;
+      }
+
+      const siblings = await prRepo.find({
+        where: { stack_id: pr.stack_id, repo_id: pr.repo_id },
+        relations: ['repo'],
+        order: { stack_position: 'ASC' },
+      });
+
+      res.json({
+        stack: siblings.map((s) => ({
+          id: s.id,
+          repo: {
+            id: s.repo.id,
+            github_owner: s.repo.github_owner,
+            github_name: s.repo.github_name,
+          },
+          github_pr_number: s.github_pr_number,
+          title: s.title,
+          author: s.author,
+          branch_name: s.branch_name,
+          base_branch: s.base_branch,
+          status: s.status,
+          head_sha: s.head_sha,
+          stack_id: s.stack_id,
+          stack_position: s.stack_position,
+          stack_size: s.stack_size,
+          created_at: s.created_at,
+          updated_at: s.updated_at,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+export { router as prRoutes };

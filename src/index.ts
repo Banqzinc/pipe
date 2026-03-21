@@ -12,18 +12,27 @@ import { authRoutes } from './routes/auth.routes';
 import { authMiddleware } from './middleware/auth.middleware';
 import { errorMiddleware } from './middleware/error.middleware';
 import { repoRoutes } from './routes/repo.routes';
+import { prRoutes } from './routes/pr.routes';
+import { webhookRoutes } from './routes/webhook.routes';
 
 const config = loadConfig();
 const app = express();
 
 app.use(cors({ origin: config.origin, credentials: true }));
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Webhook routes — before auth middleware (uses HMAC signature verification)
+app.use('/api/webhooks', webhookRoutes);
 
 // Auth routes (login/logout NOT protected by authMiddleware)
 app.use('/api/auth', authRoutes);
@@ -31,8 +40,9 @@ app.use('/api/auth', authRoutes);
 // Auth middleware applied to all subsequent /api/* routes
 app.use('/api', authMiddleware);
 
-// Future API routes go here
+// Protected API routes
 app.use('/api/repos', repoRoutes);
+app.use('/api/prs', prRoutes);
 
 // Serve frontend static files in production
 const frontendPath = path.join(__dirname, '../frontend/dist');
