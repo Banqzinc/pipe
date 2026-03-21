@@ -6,7 +6,7 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import type { ReviewRun } from './ReviewRun.entity';
+import { ReviewRun } from './ReviewRun.entity';
 
 @Entity()
 export class ReviewPost {
@@ -32,8 +32,8 @@ export class ReviewPost {
   created_at!: Date;
 
   @OneToOne(
-    () => require('./ReviewRun.entity').ReviewRun,
-    (run: ReviewRun) => run.reviewPost,
+    () => ReviewRun,
+    (run) => run.reviewPost,
   )
   @JoinColumn({ name: 'run_id' })
   reviewRun!: ReviewRun;

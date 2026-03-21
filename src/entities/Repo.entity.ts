@@ -7,7 +7,7 @@ import {
   OneToMany,
   Unique,
 } from 'typeorm';
-import type { PullRequest } from './PullRequest.entity';
+import { PullRequest } from './PullRequest.entity';
 
 @Entity()
 @Unique(['github_owner', 'github_name'])
@@ -40,8 +40,8 @@ export class Repo {
   updated_at!: Date;
 
   @OneToMany(
-    () => require('./PullRequest.entity').PullRequest,
-    (pr: PullRequest) => pr.repo,
+    () => PullRequest,
+    (pr) => pr.repo,
   )
   pullRequests!: PullRequest[];
 }

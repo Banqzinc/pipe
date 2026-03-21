@@ -11,8 +11,8 @@ import {
   Unique,
 } from 'typeorm';
 import { PrStatus } from './enums';
-import type { Repo } from './Repo.entity';
-import type { ReviewRun } from './ReviewRun.entity';
+import { Repo } from './Repo.entity';
+import { ReviewRun } from './ReviewRun.entity';
 
 @Entity()
 @Unique(['repo_id', 'github_pr_number'])
@@ -68,15 +68,15 @@ export class PullRequest {
   updated_at!: Date;
 
   @ManyToOne(
-    () => require('./Repo.entity').Repo,
-    (repo: Repo) => repo.pullRequests,
+    () => Repo,
+    (repo) => repo.pullRequests,
   )
   @JoinColumn({ name: 'repo_id' })
   repo!: Repo;
 
   @OneToMany(
-    () => require('./ReviewRun.entity').ReviewRun,
-    (run: ReviewRun) => run.pullRequest,
+    () => ReviewRun,
+    (run) => run.pullRequest,
   )
   reviewRuns!: ReviewRun[];
 }

@@ -10,7 +10,7 @@ export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   entities: [Repo, PullRequest, ReviewRun, Finding, ReviewPost],
-  migrations: ['src/migrations/*.ts'],
+  migrations: [__dirname + '/../migrations/*.{ts,js}'],
   synchronize: false,
   logging: ['error', 'warn'],
 });
