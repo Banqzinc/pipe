@@ -32,9 +32,6 @@ app.use('/api', authMiddleware);
 
 // Future API routes go here
 
-// Error middleware (must be after all routes)
-app.use(errorMiddleware);
-
 // Serve frontend static files in production
 const frontendPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
@@ -46,6 +43,9 @@ app.get('*path', (_req, res, next) => {
     next();
   }
 });
+
+// Error middleware (must be after ALL routes including SPA catch-all)
+app.use(errorMiddleware);
 
 async function start() {
   await AuthService.initSecret(config.reposDir);
