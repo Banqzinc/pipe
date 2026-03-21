@@ -7,6 +7,7 @@ import { ReviewPost } from '../entities/ReviewPost.entity';
 import { RunStatus } from '../entities/enums';
 import { AppError } from '../lib/errors';
 import { reviewRunner } from '../services/review-runner.service';
+import { postingService } from '../services/posting.service';
 
 const router = Router();
 
@@ -106,6 +107,41 @@ router.get(
         completed_at: run.completed_at,
         created_at: run.created_at,
       });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// POST /api/runs/:id/post — Post accepted findings to GitHub as a PR review
+router.post(
+  '/runs/:id/post',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const runId = req.params.id as string;
+      const result = await postingService.postToGitHub(runId);
+      res.json(result);
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'STALE') {
+        res.status(409).json({
+          error: err.message,
+          code: 'STALE',
+        });
+        return;
+      }
+      next(err);
+    }
+  },
+);
+
+// POST /api/runs/:id/export — Export findings as markdown for self-review
+router.post(
+  '/runs/:id/export',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const runId = req.params.id as string;
+      const result = await postingService.exportFindings(runId);
+      res.json(result);
     } catch (err) {
       next(err);
     }
