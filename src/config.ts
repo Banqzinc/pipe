@@ -7,6 +7,7 @@ const ConfigSchema = z.object({
   encryptionKey: z.string().length(64, 'PIPE_ENCRYPTION_KEY must be 64 hex chars (32 bytes)'),
   reposDir: z.string().default('./repos'),
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
+  origin: z.string().default('http://localhost:5173'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -19,5 +20,6 @@ export function loadConfig(): Config {
     encryptionKey: process.env.PIPE_ENCRYPTION_KEY,
     reposDir: process.env.PIPE_REPOS_DIR,
     nodeEnv: process.env.NODE_ENV,
+    origin: process.env.PIPE_ORIGIN,
   });
 }
