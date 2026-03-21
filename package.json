@@ -18,9 +18,9 @@
     "lint:fix": "npx @biomejs/biome lint --write src",
     "format": "npx @biomejs/biome format --write src",
     "format:check": "npx @biomejs/biome format src",
-    "migration:run": "npx typeorm migration:run -d src/db/data-source.ts",
-    "migration:revert": "npx typeorm migration:revert -d src/db/data-source.ts",
-    "migration:generate": "npx typeorm migration:generate -d src/db/data-source.ts"
+    "migration:run": "npx tsx node_modules/typeorm/cli.js migration:run -d src/db/data-source.ts",
+    "migration:revert": "npx tsx node_modules/typeorm/cli.js migration:revert -d src/db/data-source.ts",
+    "migration:generate": "npx tsx node_modules/typeorm/cli.js migration:generate -d src/db/data-source.ts"
   },
   "keywords": [],
   "author": "",
