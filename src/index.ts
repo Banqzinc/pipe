@@ -11,6 +11,7 @@ import { AuthService } from './services/auth.service';
 import { authRoutes } from './routes/auth.routes';
 import { authMiddleware } from './middleware/auth.middleware';
 import { errorMiddleware } from './middleware/error.middleware';
+import { repoRoutes } from './routes/repo.routes';
 
 const config = loadConfig();
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', authMiddleware);
 
 // Future API routes go here
+app.use('/api/repos', repoRoutes);
 
 // Serve frontend static files in production
 const frontendPath = path.join(__dirname, '../frontend/dist');

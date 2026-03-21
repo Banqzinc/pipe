@@ -1,0 +1,119 @@
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { AppDataSource } from '../db/data-source';
+import { Repo } from '../entities/Repo.entity';
+import { encrypt } from '../lib/encryption';
+import { AppError } from '../lib/errors';
+
+const router = Router();
+const repoRepository = () => AppDataSource.getRepository(Repo);
+
+// --- Zod schemas ---
+
+const CreateRepoSchema = z.object({
+  github_owner: z.string().min(1),
+  github_name: z.string().min(1),
+  pat: z.string().min(1),
+  webhook_secret: z.string().min(1),
+});
+
+const UpdateRepoSchema = z.object({
+  pat: z.string().min(1).optional(),
+  auto_trigger_on_open: z.boolean().optional(),
+});
+
+// --- Helper: strip sensitive fields ---
+
+function toSafeRepo(repo: Repo) {
+  return {
+    id: repo.id,
+    github_owner: repo.github_owner,
+    github_name: repo.github_name,
+    auto_trigger_on_open: repo.auto_trigger_on_open,
+    created_at: repo.created_at,
+    updated_at: repo.updated_at,
+  };
+}
+
+// --- Routes ---
+
+// GET /api/repos — list all repos
+router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const repos = await repoRepository().find({ order: { created_at: 'DESC' } });
+    res.json(repos.map(toSafeRepo));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/repos — create a repo
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = CreateRepoSchema.parse(req.body);
+
+    const repo = repoRepository().create({
+      github_owner: parsed.github_owner,
+      github_name: parsed.github_name,
+      pat_token_encrypted: encrypt(parsed.pat),
+      github_webhook_secret: parsed.webhook_secret,
+    });
+
+    const saved = await repoRepository().save(repo);
+    res.status(201).json(toSafeRepo(saved));
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      next(new AppError(err.issues.map((i) => i.message).join('; '), 400, 'VALIDATION_ERROR'));
+      return;
+    }
+    next(err);
+  }
+});
+
+// PATCH /api/repos/:id — partial update
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = UpdateRepoSchema.parse(req.body);
+    const id = req.params.id as string;
+    const repo = await repoRepository().findOneBy({ id });
+
+    if (!repo) {
+      throw new AppError('Repo not found', 404, 'NOT_FOUND');
+    }
+
+    if (parsed.pat !== undefined) {
+      repo.pat_token_encrypted = encrypt(parsed.pat);
+    }
+    if (parsed.auto_trigger_on_open !== undefined) {
+      repo.auto_trigger_on_open = parsed.auto_trigger_on_open;
+    }
+
+    const saved = await repoRepository().save(repo);
+    res.json(toSafeRepo(saved));
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      next(new AppError(err.issues.map((i) => i.message).join('; '), 400, 'VALIDATION_ERROR'));
+      return;
+    }
+    next(err);
+  }
+});
+
+// DELETE /api/repos/:id — hard delete
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const result = await repoRepository().delete({ id });
+
+    if (result.affected === 0) {
+      throw new AppError('Repo not found', 404, 'NOT_FOUND');
+    }
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+export { router as repoRoutes };
