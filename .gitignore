@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+repos/
+.superpowers/
+*.log
+frontend/dist/
+frontend/node_modules/

@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: pipe
+      POSTGRES_PASSWORD: pipe
+      POSTGRES_DB: pipe
+    ports:
+      - "5433:5432"
+    volumes:
+      - pipe_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipe -d pipe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pipe_pgdata:
