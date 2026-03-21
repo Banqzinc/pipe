@@ -1,0 +1,501 @@
+import { useState, useEffect, useCallback } from 'react';
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
+import { useRun } from '../../api/queries/runs.ts';
+import { useFindings } from '../../api/queries/findings.ts';
+import type { FindingItem } from '../../api/queries/findings.ts';
+import {
+  useUpdateFinding,
+  useBulkAction,
+  usePostToGithub,
+  useExportFindings,
+} from '../../api/mutations/findings.ts';
+import { useCreateRun } from '../../api/mutations/runs.ts';
+import { ReviewBrief } from '../../components/run/review-brief.tsx';
+import { FindingList } from '../../components/run/finding-list.tsx';
+import { StaleBanner } from '../../components/run/stale-banner.tsx';
+import { PostBar } from '../../components/run/post-bar.tsx';
+
+function RunPage() {
+  const { id } = Route.useParams();
+  const router = useRouter();
+
+  // Data fetching
+  const { data: run, isLoading: runLoading, error: runError } = useRun(id);
+  const { data: findingsData } = useFindings(id);
+
+  // Mutations
+  const updateFinding = useUpdateFinding(id);
+  const bulkAction = useBulkAction(id);
+  const postToGithub = usePostToGithub(id);
+  const exportFindings = useExportFindings(id);
+  const createRun = useCreateRun();
+
+  // Findings state management
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+
+  const findings = findingsData?.findings ?? [];
+  const counts = findingsData?.counts ?? {
+    total: 0,
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    edited: 0,
+    posted: 0,
+  };
+
+  // Sorted findings for keyboard nav
+  const sortedFindings = [...findings].sort(
+    (a, b) => a.toolkit_order - b.toolkit_order,
+  );
+
+  // Stale detection
+  const isStale =
+    run != null && run.pr.head_sha !== run.head_sha;
+
+  // Whether the run is completed (or partial — still reviewable)
+  const isComplete =
+    run?.status === 'completed' || run?.status === 'partial';
+
+  // Whether we're in read-only mode (already posted)
+  const isReadOnly = run?.has_post ?? false;
+
+  // Clamp focused index
+  useEffect(() => {
+    if (focusedIndex >= sortedFindings.length && sortedFindings.length > 0) {
+      setFocusedIndex(sortedFindings.length - 1);
+    }
+  }, [sortedFindings.length, focusedIndex]);
+
+  // Get focused finding
+  const getFocusedFinding = useCallback((): FindingItem | undefined => {
+    return sortedFindings[focusedIndex];
+  }, [sortedFindings, focusedIndex]);
+
+  // Action handlers
+  const handleAccept = useCallback(
+    (findingId: string) => {
+      if (isReadOnly) return;
+      updateFinding.mutate({ findingId, status: 'accepted' });
+    },
+    [updateFinding, isReadOnly],
+  );
+
+  const handleReject = useCallback(
+    (findingId: string) => {
+      if (isReadOnly) return;
+      updateFinding.mutate({ findingId, status: 'rejected' });
+    },
+    [updateFinding, isReadOnly],
+  );
+
+  const handleStartEdit = useCallback(
+    (findingId: string) => {
+      if (isReadOnly) return;
+      const finding = findings.find((f) => f.id === findingId);
+      if (finding) {
+        setEditingId(findingId);
+        setEditBody(finding.edited_body ?? finding.body);
+      }
+    },
+    [findings, isReadOnly],
+  );
+
+  const handleEditSave = useCallback(() => {
+    if (editingId) {
+      updateFinding.mutate(
+        { findingId: editingId, status: 'edited', edited_body: editBody },
+        { onSuccess: () => setEditingId(null) },
+      );
+    }
+  }, [editingId, editBody, updateFinding]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditingId(null);
+    setEditBody('');
+  }, []);
+
+  const handleRejectNitpicks = useCallback(() => {
+    if (isReadOnly) return;
+    bulkAction.mutate({
+      action: 'reject',
+      filter: { severity: 'nitpick' },
+    });
+  }, [bulkAction, isReadOnly]);
+
+  const handlePost = useCallback(() => {
+    if (isReadOnly || isStale) return;
+    if (
+      !window.confirm(
+        'Post accepted findings to GitHub as a PR review? This cannot be undone.',
+      )
+    ) {
+      return;
+    }
+    postToGithub.mutate();
+  }, [postToGithub, isReadOnly, isStale]);
+
+  const handleExport = useCallback(() => {
+    if (isReadOnly || isStale) return;
+    if (!window.confirm('Export accepted findings as markdown?')) return;
+    exportFindings.mutate(undefined, {
+      onSuccess: (data) => {
+        // Copy to clipboard
+        void navigator.clipboard.writeText(data.markdown);
+        alert(
+          `Exported ${data.findings_count} findings. Markdown copied to clipboard.`,
+        );
+      },
+    });
+  }, [exportFindings, isReadOnly, isStale]);
+
+  const handleRerun = useCallback(() => {
+    if (!run) return;
+    createRun.mutate(
+      { prId: run.pr.id, isSelfReview: run.is_self_review },
+      {
+        onSuccess: (data) => {
+          void router.navigate({ to: `/run/${data.id}` as '/' });
+        },
+      },
+    );
+  }, [run, createRun, router]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!isComplete || isReadOnly) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable shortcuts when editor is open
+      if (editingId !== null) return;
+
+      // Ignore if user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT'
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'j':
+          e.preventDefault();
+          setFocusedIndex((prev) =>
+            Math.min(prev + 1, sortedFindings.length - 1),
+          );
+          break;
+        case 'k':
+          e.preventDefault();
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case 'a': {
+          e.preventDefault();
+          const f = getFocusedFinding();
+          if (f && f.status === 'pending') handleAccept(f.id);
+          break;
+        }
+        case 'r': {
+          e.preventDefault();
+          const f = getFocusedFinding();
+          if (f && f.status === 'pending') handleReject(f.id);
+          break;
+        }
+        case 'e': {
+          e.preventDefault();
+          const f = getFocusedFinding();
+          if (f && f.status === 'pending') handleStartEdit(f.id);
+          break;
+        }
+        case 'R':
+          if (e.shiftKey) {
+            e.preventDefault();
+            handleRejectNitpicks();
+          }
+          break;
+        case 'P':
+          if (e.shiftKey) {
+            e.preventDefault();
+            if (run?.is_self_review) {
+              handleExport();
+            } else {
+              handlePost();
+            }
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isComplete,
+    isReadOnly,
+    editingId,
+    sortedFindings.length,
+    getFocusedFinding,
+    handleAccept,
+    handleReject,
+    handleStartEdit,
+    handleRejectNitpicks,
+    handlePost,
+    handleExport,
+    run?.is_self_review,
+  ]);
+
+  // --- Loading state ---
+  if (runLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="text-gray-500 text-sm">Loading run...</div>
+      </div>
+    );
+  }
+
+  // --- Error state ---
+  if (runError || !run) {
+    return (
+      <div className="p-6">
+        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+          &larr; Back to Inbox
+        </Link>
+        <div className="mt-6 rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+          {runError instanceof Error
+            ? runError.message
+            : 'Failed to load run.'}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Status helpers ---
+  const isInProgress =
+    run.status === 'queued' || run.status === 'running';
+  const isFailed = run.status === 'failed';
+  const repoLabel = `${run.pr.repo.github_owner}/${run.pr.repo.github_name}`;
+
+  return (
+    <div className="pb-20">
+      {/* Top bar */}
+      <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-4 flex-wrap">
+        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+          &larr; Back
+        </Link>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="text-xs font-mono text-gray-500">
+            {repoLabel}
+          </span>
+          <span className="text-gray-200 text-sm truncate">
+            #{run.pr.github_pr_number} {run.pr.title}
+          </span>
+          {run.pr.stack_id &&
+            run.pr.stack_position != null &&
+            run.pr.stack_size != null && (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-400">
+                Stack {run.pr.stack_position}/{run.pr.stack_size}
+              </span>
+            )}
+          {run.is_self_review && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-orange-500/20 text-orange-400">
+              SELF
+            </span>
+          )}
+        </div>
+
+        {/* Status */}
+        <RunStatusBadge status={run.status} />
+
+        {/* Re-run button */}
+        {(isComplete || isFailed) && !isReadOnly && (
+          <button
+            type="button"
+            onClick={handleRerun}
+            disabled={createRun.isPending}
+            className="px-3 py-1.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
+          >
+            {createRun.isPending ? 'Starting...' : 'Re-run Review'}
+          </button>
+        )}
+      </div>
+
+      {/* Main content */}
+      <div className="px-6 py-6 space-y-6">
+        {/* Stale banner */}
+        {isStale && (
+          <StaleBanner
+            onRerun={handleRerun}
+            isRerunning={createRun.isPending}
+          />
+        )}
+
+        {/* In progress state */}
+        {isInProgress && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 py-8 justify-center">
+              <Spinner />
+              <span className="text-gray-400 text-sm">
+                Review in progress...
+              </span>
+            </div>
+            {/* Show risk signals if available while running */}
+            {run.risk_signals && (
+              <ReviewBrief brief={null} riskSignals={run.risk_signals} />
+            )}
+          </div>
+        )}
+
+        {/* Failed state */}
+        {isFailed && (
+          <div className="rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+            <p className="font-medium">Review failed</p>
+            {run.error_message && (
+              <p className="mt-1 text-red-400/80">{run.error_message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Completed state: brief + findings */}
+        {isComplete && (
+          <>
+            <ReviewBrief
+              brief={run.brief}
+              riskSignals={run.risk_signals}
+            />
+
+            {/* Keyboard shortcuts help */}
+            {!isReadOnly && sortedFindings.length > 0 && (
+              <div className="text-xs text-gray-600 flex flex-wrap gap-3">
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    j
+                  </kbd>
+                  /
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    k
+                  </kbd>{' '}
+                  navigate
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    a
+                  </kbd>{' '}
+                  accept
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    r
+                  </kbd>{' '}
+                  reject
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    e
+                  </kbd>{' '}
+                  edit
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    Shift+R
+                  </kbd>{' '}
+                  reject nitpicks
+                </span>
+                <span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                    Shift+P
+                  </kbd>{' '}
+                  post/export
+                </span>
+              </div>
+            )}
+
+            <FindingList
+              findings={sortedFindings}
+              focusedIndex={focusedIndex}
+              onAccept={handleAccept}
+              onReject={handleReject}
+              onStartEdit={handleStartEdit}
+              editingId={editingId}
+              editBody={editBody}
+              onEditBodyChange={setEditBody}
+              onEditSave={handleEditSave}
+              onEditCancel={handleEditCancel}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Post bar — only show when run is complete and has findings */}
+      {isComplete && counts.total > 0 && (
+        <PostBar
+          counts={counts}
+          isSelfReview={run.is_self_review}
+          isStale={isStale}
+          hasPost={run.has_post}
+          onPost={handlePost}
+          onExport={handleExport}
+          onRejectNitpicks={handleRejectNitpicks}
+          isPosting={postToGithub.isPending || exportFindings.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Helper components ---
+
+function RunStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    queued: 'bg-gray-500/20 text-gray-400',
+    running: 'bg-blue-500/20 text-blue-400',
+    completed: 'bg-green-500/20 text-green-400',
+    partial: 'bg-yellow-500/20 text-yellow-400',
+    failed: 'bg-red-500/20 text-red-400',
+  };
+
+  const labels: Record<string, string> = {
+    queued: 'Queued',
+    running: 'Running',
+    completed: 'Completed',
+    partial: 'Partial',
+    failed: 'Failed',
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${styles[status] ?? styles.queued}`}
+    >
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin h-5 w-5 text-blue-400"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
+  );
+}
+
+export const Route = createFileRoute('/_authed/run/$id')({
+  component: RunPage,
+});
