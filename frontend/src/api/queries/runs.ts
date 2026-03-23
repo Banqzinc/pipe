@@ -14,6 +14,8 @@ export interface RunDetailPr {
   stack_position: number | null;
   stack_size: number | null;
   head_sha: string;
+  linear_ticket_id: string | null;
+  notion_url: string | null;
 }
 
 export interface BriefIssue {
@@ -50,6 +52,8 @@ export interface RunDetail {
   brief: Brief | null;
   risk_signals: RiskSignals | null;
   error_message: string | null;
+  prompt: string | null;
+  cli_output: string | null;
   has_post: boolean;
   post: {
     github_review_id: number;

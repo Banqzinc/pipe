@@ -16,6 +16,7 @@ import { prRoutes } from './routes/pr.routes';
 import { webhookRoutes } from './routes/webhook.routes';
 import { runRoutes } from './routes/run.routes';
 import { findingRoutes } from './routes/finding.routes';
+import { workflowRoutes } from './routes/workflow.routes';
 
 const config = loadConfig();
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/repos', repoRoutes);
 app.use('/api/prs', prRoutes);
 app.use('/api', runRoutes);
 app.use('/api', findingRoutes);
+app.use('/api/workflow', workflowRoutes);
 
 // Serve frontend static files in production
 const frontendPath = path.join(__dirname, '../frontend/dist');

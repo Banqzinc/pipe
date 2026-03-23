@@ -1,0 +1,19 @@
+import { useMutation } from '@tanstack/react-query';
+import { api } from '../client.ts';
+
+export interface PreviewPromptResult {
+  prompt: string;
+  context_summary: {
+    has_linear_ticket: boolean;
+    has_notion_url: boolean;
+    stack_position: number | null;
+    stack_size: number | null;
+  };
+}
+
+export function usePreviewPrompt() {
+  return useMutation({
+    mutationFn: (prId: string) =>
+      api.post<PreviewPromptResult>(`/prs/${prId}/preview-prompt`),
+  });
+}

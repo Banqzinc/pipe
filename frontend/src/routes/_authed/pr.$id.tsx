@@ -1,15 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { usePullRequest } from '../../api/queries/prs.ts';
 import type { PullRequestListItem } from '../../api/queries/prs.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useUpdatePr } from '../../api/mutations/prs.ts';
 import { api } from '../../api/client.ts';
 import { useQuery } from '@tanstack/react-query';
+import { SplitButton } from '../../components/common/split-button.tsx';
+import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
 
 function PrDetailPage() {
   const { id } = Route.useParams();
   const router = useRouter();
   const [selfReview, setSelfReview] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+
+  const [editLinear, setEditLinear] = useState('');
+  const [editNotion, setEditNotion] = useState('');
 
   const { data: pr, isLoading, error } = usePullRequest(id);
   const { data: stackPrs } = useQuery({
@@ -19,6 +26,14 @@ function PrDetailPage() {
   });
 
   const createRun = useCreateRun();
+  const updatePr = useUpdatePr();
+
+  useEffect(() => {
+    if (pr) {
+      setEditLinear(pr.linear_ticket_id ?? '');
+      setEditNotion(pr.notion_url ?? '');
+    }
+  }, [pr]);
 
   const handleRunReview = () => {
     createRun.mutate(
@@ -143,17 +158,54 @@ function PrDetailPage() {
         </div>
       )}
 
+      {/* Business Context */}
+      <div className="px-6 py-4 border-b border-gray-800">
+        <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Business Context</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Linear Context</label>
+            <input
+              type="text"
+              value={editLinear}
+              onChange={(e) => setEditLinear(e.target.value)}
+              onBlur={() => {
+                if ((editLinear || null) !== (pr?.linear_ticket_id || null)) {
+                  updatePr.mutate({ prId: id, linear_ticket_id: editLinear || null });
+                }
+              }}
+              placeholder="e.g. CORE-558 or PR-PIPE"
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Notion Proposal</label>
+            <input
+              type="text"
+              value={editNotion}
+              onChange={(e) => setEditNotion(e.target.value)}
+              onBlur={() => {
+                if ((editNotion || null) !== (pr?.notion_url || null)) {
+                  updatePr.mutate({ prId: id, notion_url: editNotion || null });
+                }
+              }}
+              placeholder="https://notion.so/..."
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Run Review */}
       <div className="px-6 py-6 border-b border-gray-800">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
+          <SplitButton
+            label={createRun.isPending ? 'Starting...' : 'Run Review'}
             onClick={handleRunReview}
             disabled={createRun.isPending}
-            className="px-4 py-2 text-sm font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
-          >
-            {createRun.isPending ? 'Starting...' : 'Run Review'}
-          </button>
+            menuItems={[
+              { label: 'Customize & Run...', onClick: () => setShowCustomize(true) },
+            ]}
+          />
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input
               type="checkbox"
@@ -172,6 +224,27 @@ function PrDetailPage() {
           </p>
         )}
       </div>
+
+      {/* Customize & Run modal */}
+      <PromptPreviewModal
+        isOpen={showCustomize}
+        onClose={() => setShowCustomize(false)}
+        prId={id}
+        onRun={(prompt) => {
+          createRun.mutate(
+            { prId: id, isSelfReview: selfReview, prompt },
+            {
+              onSuccess: (data) => {
+                setShowCustomize(false);
+                void router.navigate({ to: `/run/${data.id}` as '/' });
+              },
+            },
+          );
+        }}
+        isRunning={createRun.isPending}
+        linearTicketId={pr?.linear_ticket_id}
+        notionUrl={pr?.notion_url}
+      />
 
       {/* Run history */}
       <div className="px-6 py-6">

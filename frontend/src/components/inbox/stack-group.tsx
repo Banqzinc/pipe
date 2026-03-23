@@ -6,6 +6,7 @@ interface StackGroupProps {
   stackId: string;
   prs: PullRequestListItem[];
   onRunReview: (prId: string) => void;
+  onCustomizeRun: (prId: string) => void;
   isRunning: boolean;
 }
 
@@ -13,6 +14,7 @@ export function StackGroup({
   stackId,
   prs,
   onRunReview,
+  onCustomizeRun,
   isRunning,
 }: StackGroupProps) {
   const [expanded, setExpanded] = useState(true);
@@ -55,6 +57,7 @@ export function StackGroup({
               key={pr.id}
               pr={pr}
               onRunReview={onRunReview}
+              onCustomizeRun={onCustomizeRun}
               isRunning={isRunning}
               indented
             />

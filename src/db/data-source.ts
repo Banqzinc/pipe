@@ -5,11 +5,12 @@ import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
 import { Finding } from '../entities/Finding.entity';
 import { ReviewPost } from '../entities/ReviewPost.entity';
+import { PromptTemplate } from '../entities/PromptTemplate.entity';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  entities: [Repo, PullRequest, ReviewRun, Finding, ReviewPost],
+  entities: [Repo, PullRequest, ReviewRun, Finding, ReviewPost, PromptTemplate],
   migrations: [__dirname + '/../migrations/*.{ts,js}'],
   synchronize: false,
   logging: ['error', 'warn'],

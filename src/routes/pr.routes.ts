@@ -5,8 +5,9 @@ import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
 import { Finding } from '../entities/Finding.entity';
 import { ReviewPost } from '../entities/ReviewPost.entity';
-import { PrStatus, FindingStatus } from '../entities/enums';
+import { FindingStatus } from '../entities/enums';
 import { AppError } from '../lib/errors';
+import { buildPrompt } from '../services/review-runner.service';
 
 const router = Router();
 
@@ -255,5 +256,82 @@ router.get(
     }
   },
 );
+
+// POST /api/prs/:id/preview-prompt — Build prompt without creating a run
+router.post(
+  '/:id/preview-prompt',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const prRepo = AppDataSource.getRepository(PullRequest);
+      const id = req.params.id as string;
+
+      const pr = await prRepo.findOne({
+        where: { id },
+        relations: ['repo'],
+      });
+
+      if (!pr) {
+        throw new AppError('Pull request not found', 404, 'NOT_FOUND');
+      }
+
+      // Build a lightweight context pack (just business context, no diff needed for prompt)
+      const ctx = {
+        diff: '',
+        diffTruncated: false,
+        changedFiles: [] as string[],
+        rules: [],
+        parentDiff: null,
+        childDiff: null,
+        linearTicketId: pr.linear_ticket_id,
+        notionUrl: pr.notion_url,
+      };
+
+      const prompt = await buildPrompt(pr, ctx);
+
+      res.json({
+        prompt,
+        context_summary: {
+          has_linear_ticket: !!pr.linear_ticket_id,
+          has_notion_url: !!pr.notion_url,
+          stack_position: pr.stack_position,
+          stack_size: pr.stack_size,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// PATCH /api/prs/:id — Update PR fields (business context)
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    const id = req.params.id as string;
+
+    const pr = await prRepo.findOneBy({ id });
+    if (!pr) {
+      throw new AppError('Pull request not found', 404, 'NOT_FOUND');
+    }
+
+    const { linear_ticket_id, notion_url } = req.body as {
+      linear_ticket_id?: string | null;
+      notion_url?: string | null;
+    };
+
+    if (linear_ticket_id !== undefined) pr.linear_ticket_id = linear_ticket_id || null;
+    if (notion_url !== undefined) pr.notion_url = notion_url || null;
+
+    await prRepo.save(pr);
+
+    res.json({
+      id: pr.id,
+      linear_ticket_id: pr.linear_ticket_id,
+      notion_url: pr.notion_url,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export { router as prRoutes };

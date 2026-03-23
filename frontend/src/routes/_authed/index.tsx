@@ -4,6 +4,7 @@ import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
 import { PrTable } from '../../components/inbox/pr-table.tsx';
+import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
 
 type FilterTab = 'all' | 'needs_review' | 'in_progress' | 'completed';
 
@@ -26,6 +27,7 @@ function InboxPage() {
   const { data, isLoading, error } = usePullRequests(filters);
   const { data: repos } = useRepos();
   const createRun = useCreateRun();
+  const [customizePrId, setCustomizePrId] = useState<string | null>(null);
 
   // Fetch all PRs (unfiltered) for tab counts
   const { data: allData } = usePullRequests({
@@ -55,6 +57,18 @@ function InboxPage() {
 
   const handleRunReview = (prId: string) => {
     createRun.mutate({ prId });
+  };
+
+  const handleCustomizeRun = (prId: string) => {
+    setCustomizePrId(prId);
+  };
+
+  const handleCustomizeRunSubmit = (prompt: string) => {
+    if (!customizePrId) return;
+    createRun.mutate(
+      { prId: customizePrId, prompt },
+      { onSuccess: () => setCustomizePrId(null) },
+    );
   };
 
   // Empty state: no repos configured
@@ -160,6 +174,7 @@ function InboxPage() {
         <PrTable
           prs={prs}
           onRunReview={handleRunReview}
+          onCustomizeRun={handleCustomizeRun}
           isRunning={createRun.isPending}
         />
       )}
@@ -186,6 +201,22 @@ function InboxPage() {
           </p>
         </div>
       )}
+
+      {/* Customize & Run modal */}
+      {customizePrId && (() => {
+        const customizePr = customizePrId ? prs.find((p) => p.id === customizePrId) : null;
+        return (
+          <PromptPreviewModal
+            isOpen={!!customizePrId}
+            onClose={() => setCustomizePrId(null)}
+            prId={customizePrId}
+            onRun={handleCustomizeRunSubmit}
+            isRunning={createRun.isPending}
+            linearTicketId={customizePr?.linear_ticket_id}
+            notionUrl={customizePr?.notion_url}
+          />
+        );
+      })()}
     </div>
   );
 }

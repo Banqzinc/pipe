@@ -39,6 +39,7 @@ export interface PullRequestListItem {
   status: string;
   head_sha: string;
   linear_ticket_id: string | null;
+  notion_url: string | null;
   stack_id: string | null;
   stack_position: number | null;
   stack_size: number | null;

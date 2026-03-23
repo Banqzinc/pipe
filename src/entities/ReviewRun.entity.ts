@@ -48,6 +48,12 @@ export class ReviewRun {
   @Column({ type: 'text', nullable: true })
   error_message!: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  prompt!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  cli_output!: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   started_at!: Date | null;
 

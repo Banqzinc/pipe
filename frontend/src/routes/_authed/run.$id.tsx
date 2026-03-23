@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
+import { SplitButton } from '../../components/common/split-button.tsx';
+import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
 import { useRun } from '../../api/queries/runs.ts';
 import { useFindings } from '../../api/queries/findings.ts';
 import type { FindingItem } from '../../api/queries/findings.ts';
@@ -34,6 +36,9 @@ function RunPage() {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const cliOutputRef = useRef<HTMLPreElement>(null);
 
   const findings = findingsData?.findings ?? [];
   const counts = findingsData?.counts ?? {
@@ -67,6 +72,13 @@ function RunPage() {
       setFocusedIndex(sortedFindings.length - 1);
     }
   }, [sortedFindings.length, focusedIndex]);
+
+  // Auto-scroll CLI output
+  useEffect(() => {
+    if (cliOutputRef.current) {
+      cliOutputRef.current.scrollTop = cliOutputRef.current.scrollHeight;
+    }
+  }, [run?.cli_output]);
 
   // Get focused finding
   const getFocusedFinding = useCallback((): FindingItem | undefined => {
@@ -309,14 +321,14 @@ function RunPage() {
 
         {/* Re-run button */}
         {(isComplete || isFailed) && !isReadOnly && (
-          <button
-            type="button"
+          <SplitButton
+            label={createRun.isPending ? 'Starting...' : 'Re-run Review'}
             onClick={handleRerun}
             disabled={createRun.isPending}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
-          >
-            {createRun.isPending ? 'Starting...' : 'Re-run Review'}
-          </button>
+            menuItems={[
+              { label: 'Customize & Re-run...', onClick: () => setShowCustomize(true) },
+            ]}
+          />
         )}
       </div>
 
@@ -333,13 +345,27 @@ function RunPage() {
         {/* In progress state */}
         {isInProgress && (
           <div className="space-y-6">
-            <div className="flex items-center gap-3 py-8 justify-center">
+            <div className="flex items-center gap-3 py-4">
               <Spinner />
               <span className="text-gray-400 text-sm">
                 Review in progress...
               </span>
             </div>
-            {/* Show risk signals if available while running */}
+
+            {run.cli_output && (
+              <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">
+                <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 font-medium">
+                  Live Output
+                </div>
+                <pre
+                  ref={cliOutputRef}
+                  className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                >
+                  {run.cli_output}
+                </pre>
+              </div>
+            )}
+
             {run.risk_signals && (
               <ReviewBrief brief={null} riskSignals={run.risk_signals} />
             )}
@@ -363,6 +389,33 @@ function RunPage() {
               brief={run.brief}
               riskSignals={run.risk_signals}
             />
+
+            {/* View Prompt */}
+            {run.prompt && (
+              <div className="rounded-lg border border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setPromptExpanded(!promptExpanded)}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-gray-200 transition-colors text-left"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform ${promptExpanded ? 'rotate-90' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  View Prompt
+                </button>
+                {promptExpanded && (
+                  <pre className="px-4 pb-4 text-xs text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                    {run.prompt}
+                  </pre>
+                )}
+              </div>
+            )}
 
             {/* Keyboard shortcuts help */}
             {!isReadOnly && sortedFindings.length > 0 && (
@@ -439,6 +492,28 @@ function RunPage() {
           isPosting={postToGithub.isPending || exportFindings.isPending}
         />
       )}
+
+      {/* Customize & Re-run modal */}
+      <PromptPreviewModal
+        isOpen={showCustomize}
+        onClose={() => setShowCustomize(false)}
+        prId={run?.pr.id ?? ''}
+        onRun={(prompt) => {
+          if (!run) return;
+          createRun.mutate(
+            { prId: run.pr.id, isSelfReview: run.is_self_review, prompt },
+            {
+              onSuccess: (data) => {
+                setShowCustomize(false);
+                void router.navigate({ to: `/run/${data.id}` as '/' });
+              },
+            },
+          );
+        }}
+        isRunning={createRun.isPending}
+        linearTicketId={run?.pr.linear_ticket_id}
+        notionUrl={run?.pr.notion_url}
+      />
     </div>
   );
 }

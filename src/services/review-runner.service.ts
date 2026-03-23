@@ -1,16 +1,16 @@
-import { execFile as execFileCb } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { AppDataSource } from '../db/data-source';
 import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
 import { Finding } from '../entities/Finding.entity';
+import { PromptTemplate } from '../entities/PromptTemplate.entity';
 import { RunStatus, FindingSeverity, FindingStatus } from '../entities/enums';
 import { ContextPackBuilder, type ContextPack } from './context-pack.service';
 import { analyzeRisk } from './risk-engine';
 import { parseToolkitOutput, type ParsedFinding } from './output-parser';
 import { logger } from '../lib/logger';
-
-const execFileAsync = promisify(execFileCb);
+import { loadConfig } from '../config';
 
 const CLI_TIMEOUT_MS = 300_000; // 5 minutes
 const MAX_RETRIES = 3;
@@ -108,12 +108,31 @@ export class ReviewRunner {
 
     logger.info({ runId, riskLevel: riskAnalysis.overall_risk }, 'Risk analysis complete');
 
-    // 4. Construct prompt
-    const prompt = buildPrompt(pr, contextPack);
+    // 4. Construct prompt — use custom prompt if user-supplied, otherwise build from template
+    let prompt: string;
+    if (run.prompt) {
+      prompt = run.prompt;
+      logger.info({ runId }, 'Using user-supplied custom prompt');
+    } else {
+      prompt = await buildPrompt(pr, contextPack);
+      await runRepo.update(runId, { prompt });
+    }
 
-    // 5. Spawn CLI
-    logger.info({ runId }, 'Spawning CLI');
-    const rawOutput = await this.spawnCli(prompt);
+    // 5. Spawn CLI in the cloned repo directory — toolkit handles diff/rules/files
+    const config = loadConfig();
+    const repo = pr.repo;
+    const repoDir = path.join(config.reposDir, repo.github_owner, repo.github_name);
+
+    const allowedTools: string[] = [];
+    if (pr.linear_ticket_id) {
+      allowedTools.push('mcp__claude_ai_Linear__*');
+    }
+    if (pr.notion_url) {
+      allowedTools.push('mcp__claude_ai_Notion__*');
+    }
+
+    logger.info({ runId, repoDir, allowedTools }, 'Spawning CLI');
+    const rawOutput = await this.spawnCli(prompt, repoDir, runId, allowedTools);
 
     // 6. Parse output
     const parseResult = parseToolkitOutput(rawOutput);
@@ -183,13 +202,75 @@ export class ReviewRunner {
     logger.info({ runId, status: finalStatus }, 'Run finished');
   }
 
-  private async spawnCli(prompt: string): Promise<string> {
-    const { stdout } = await execFileAsync(
-      'claude',
-      ['--print', '--output-format', 'json', '-p', prompt],
-      { timeout: CLI_TIMEOUT_MS, maxBuffer: 50 * 1024 * 1024 }, // 50MB max buffer
-    );
-    return stdout;
+  private async spawnCli(
+    prompt: string,
+    cwd: string,
+    runId: string,
+    allowedTools?: string[],
+  ): Promise<string> {
+    const args = ['--print', '--output-format', 'json', '-p', prompt];
+    if (allowedTools && allowedTools.length > 0) {
+      args.push('--allowedTools', ...allowedTools);
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      const child = spawn('claude', args, { cwd });
+      const runRepo = AppDataSource.getRepository(ReviewRun);
+
+      let stdout = '';
+      let stderr = '';
+      let lastFlushedLength = 0;
+
+      // Flush accumulated stdout to DB every 2 seconds
+      const flushInterval = setInterval(() => {
+        if (stdout.length > lastFlushedLength) {
+          lastFlushedLength = stdout.length;
+          runRepo.update(runId, { cli_output: stdout }).catch((err) => {
+            logger.warn({ runId, err }, 'Failed to flush cli_output');
+          });
+        }
+      }, 2_000);
+
+      // Manual timeout
+      const timeout = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(new Error(`CLI timed out after ${CLI_TIMEOUT_MS}ms`));
+      }, CLI_TIMEOUT_MS);
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('close', (code) => {
+        clearInterval(flushInterval);
+        clearTimeout(timeout);
+
+        // Final flush
+        runRepo.update(runId, { cli_output: stdout }).catch((err) => {
+          logger.warn({ runId, err }, 'Failed final cli_output flush');
+        });
+
+        if (code !== 0) {
+          reject(
+            new Error(
+              `CLI exited with code ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ''}`,
+            ),
+          );
+        } else {
+          resolve(stdout);
+        }
+      });
+
+      child.on('error', (err) => {
+        clearInterval(flushInterval);
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
   }
 
   private async processRunWithRetry(runId: string): Promise<void> {
@@ -228,82 +309,43 @@ export class ReviewRunner {
 
 // --- Prompt Builder ---
 
-function buildPrompt(pr: PullRequest, ctx: ContextPack): string {
+export async function buildPrompt(pr: PullRequest, ctx: ContextPack): Promise<string> {
+  const templateRepo = AppDataSource.getRepository(PromptTemplate);
+  const template = await templateRepo.findOneBy({ name: 'default' });
+
+  if (!template) {
+    throw new Error('Default prompt template not found. Run migrations to create it.');
+  }
+
   const parts: string[] = [];
 
-  parts.push(`You are reviewing PR #${pr.github_pr_number}: ${pr.title}`);
+  // System instructions from template (with placeholder replacement)
+  const preamble = template.system_instructions
+    .replace(/\{\{pr_number\}\}/g, String(pr.github_pr_number))
+    .replace(/\{\{pr_title\}\}/g, pr.title);
+  parts.push(preamble);
 
-  // Rules
-  if (ctx.rules.length > 0) {
-    parts.push('\n## Rules');
-    parts.push(ctx.rules.map((r) => `### ${r.path}\n${r.content}`).join('\n\n'));
+  // PR metadata — the toolkit reads the actual diff and rules from the repo
+  parts.push(`\n## PR Metadata`);
+  parts.push(`Branch: ${pr.branch_name} → ${pr.base_branch}`);
+
+  if (pr.stack_id && pr.stack_position !== null && pr.stack_size !== null) {
+    parts.push(`Stack position: ${pr.stack_position}/${pr.stack_size}`);
   }
 
-  // PR Diff
-  parts.push('\n## PR Diff');
-  parts.push(ctx.diff);
-  if (ctx.diffTruncated) {
-    parts.push('\n[DIFF TRUNCATED — only first 3000 lines shown]');
-  }
-
-  // Changed Files
-  parts.push('\n## Changed Files');
-  parts.push(ctx.changedFiles.join('\n'));
-
-  // Business Context
-  if (ctx.linearTicketId) {
+  // Business context — toolkit uses MCP to fetch full content
+  if (ctx.linearTicketId || ctx.notionUrl) {
     parts.push('\n## Business Context');
-    parts.push(`Linear ticket: ${ctx.linearTicketId}`);
+    if (ctx.linearTicketId) {
+      parts.push(`Linear ticket: ${ctx.linearTicketId}`);
+    }
     if (ctx.notionUrl) {
       parts.push(`Notion proposal: ${ctx.notionUrl}`);
     }
-    parts.push(
-      'Use your MCP servers to fetch the ticket and proposal content for context.',
-    );
   }
 
-  // Parent PR context
-  if (ctx.parentDiff) {
-    parts.push(
-      '\n## CONTEXT ONLY — Parent PR Diff (do not review directly)',
-    );
-    parts.push(ctx.parentDiff);
-  }
-
-  // Child PR context
-  if (ctx.childDiff) {
-    parts.push(
-      '\n## CONTEXT ONLY — Child PR Diff (do not review directly)',
-    );
-    parts.push(ctx.childDiff);
-  }
-
-  // Output schema instructions
-  parts.push(`
-Review this PR and output a JSON object matching this exact schema:
-{
-  "brief": {
-    "critical_issues": [{ "summary": string, "file": string, "line": number }],
-    "important_issues": [{ "summary": string, "file": string, "line": number }],
-    "suggestions": [string],
-    "strengths": [string],
-    "recommended_actions": [string]
-  },
-  "findings": [{
-    "file_path": string,
-    "start_line": number,
-    "end_line": number | null,
-    "severity": "critical" | "warning" | "suggestion" | "nitpick",
-    "confidence": number (0-1),
-    "category": string | null,
-    "title": string,
-    "body": string (markdown),
-    "suggested_fix": string | null (code),
-    "rule_ref": string | null
-  }]
-}
-
-Focus on high-value findings. Fewer comments is better than more. Cite specific repo rules when applicable.`);
+  // Output instructions from template
+  parts.push(`\n${template.output_instructions}`);
 
   return parts.join('\n');
 }

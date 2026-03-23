@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import type { PullRequestListItem } from '../../api/queries/prs.ts';
 import { StatusBadge } from '../common/status-badge.tsx';
+import { SplitButton } from '../common/split-button.tsx';
 import { StackGroup } from './stack-group.tsx';
 
 // --- PR Row ---
@@ -8,11 +9,12 @@ import { StackGroup } from './stack-group.tsx';
 interface PrRowProps {
   pr: PullRequestListItem;
   onRunReview: (prId: string) => void;
+  onCustomizeRun: (prId: string) => void;
   isRunning: boolean;
   indented?: boolean;
 }
 
-export function PrRow({ pr, onRunReview, isRunning, indented }: PrRowProps) {
+export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: PrRowProps) {
   const router = useRouter();
 
   const isHighRisk =
@@ -82,17 +84,14 @@ export function PrRow({ pr, onRunReview, isRunning, indented }: PrRowProps) {
 
       {/* Run Review button */}
       {(!pr.latest_run || pr.latest_run.status === 'failed') && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRunReview(pr.id);
-          }}
+        <SplitButton
+          label={isRunning ? 'Running...' : pr.latest_run?.status === 'failed' ? 'Re-run Review' : 'Run Review'}
+          onClick={() => onRunReview(pr.id)}
           disabled={isRunning}
-          className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
-        >
-          {isRunning ? 'Running...' : pr.latest_run?.status === 'failed' ? 'Re-run Review' : 'Run Review'}
-        </button>
+          menuItems={[
+            { label: 'Customize & Run...', onClick: () => onCustomizeRun(pr.id) },
+          ]}
+        />
       )}
     </div>
   );
@@ -103,10 +102,11 @@ export function PrRow({ pr, onRunReview, isRunning, indented }: PrRowProps) {
 interface PrTableProps {
   prs: PullRequestListItem[];
   onRunReview: (prId: string) => void;
+  onCustomizeRun: (prId: string) => void;
   isRunning: boolean;
 }
 
-export function PrTable({ prs, onRunReview, isRunning }: PrTableProps) {
+export function PrTable({ prs, onRunReview, onCustomizeRun, isRunning }: PrTableProps) {
   // Group by stack_id
   const stacks = new Map<string, PullRequestListItem[]>();
   const standalone: PullRequestListItem[] = [];
@@ -138,6 +138,7 @@ export function PrTable({ prs, onRunReview, isRunning }: PrTableProps) {
           stackId={stackId}
           prs={stackPrs}
           onRunReview={onRunReview}
+          onCustomizeRun={onCustomizeRun}
           isRunning={isRunning}
         />
       ))}
@@ -149,6 +150,7 @@ export function PrTable({ prs, onRunReview, isRunning }: PrTableProps) {
               key={pr.id}
               pr={pr}
               onRunReview={onRunReview}
+              onCustomizeRun={onCustomizeRun}
               isRunning={isRunning}
             />
           ))}

@@ -17,7 +17,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const prId = req.params.id as string;
-      const { is_self_review } = req.body as { is_self_review?: boolean };
+      const { is_self_review, prompt } = req.body as {
+        is_self_review?: boolean;
+        prompt?: string;
+      };
 
       const prRepo = AppDataSource.getRepository(PullRequest);
       const runRepo = AppDataSource.getRepository(ReviewRun);
@@ -32,6 +35,7 @@ router.post(
         head_sha: pr.head_sha,
         status: RunStatus.Queued,
         is_self_review: is_self_review ?? false,
+        prompt: prompt ?? null,
       });
 
       await runRepo.save(run);
@@ -89,6 +93,8 @@ router.get(
           stack_position: pr.stack_position,
           stack_size: pr.stack_size,
           head_sha: pr.head_sha, // current PR head SHA for stale detection
+          linear_ticket_id: pr.linear_ticket_id,
+          notion_url: pr.notion_url,
         },
         head_sha: run.head_sha, // SHA at time of run
         status: run.status,
@@ -96,6 +102,8 @@ router.get(
         brief: run.brief,
         risk_signals: run.risk_signals,
         error_message: run.error_message,
+        prompt: run.prompt,
+        cli_output: run.status === 'running' ? run.cli_output : null,
         has_post: !!post,
         post: post
           ? {

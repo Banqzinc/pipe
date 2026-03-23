@@ -20,6 +20,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Inbox
               </Link>
               <Link
+                to="/workflow"
+                className={`text-sm ${currentPath === '/workflow' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                Workflow
+              </Link>
+              <Link
                 to="/settings"
                 className={`text-sm ${currentPath === '/settings' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
               >
