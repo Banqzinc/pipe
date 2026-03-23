@@ -16,8 +16,8 @@ export class ReviewPost {
   @Column({ type: 'uuid', nullable: false, unique: true })
   run_id!: string;
 
-  @Column({ type: 'int', nullable: false })
-  github_review_id!: number;
+  @Column({ type: 'bigint', nullable: false })
+  github_review_id!: string;
 
   @Column({ type: 'varchar', nullable: false })
   posted_sha!: string;

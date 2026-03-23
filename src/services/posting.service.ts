@@ -102,7 +102,7 @@ export class PostingService {
     // 8. Create ReviewPost record
     const post = postRepo.create({
       run_id: runId,
-      github_review_id: review.id,
+      github_review_id: String(review.id),
       posted_sha: run.head_sha,
       findings_count: findings.length,
       posted_at: new Date(),

@@ -56,7 +56,7 @@ export interface RunDetail {
   cli_output: string | null;
   has_post: boolean;
   post: {
-    github_review_id: number;
+    github_review_id: number | string;
     posted_at: string;
   } | null;
   started_at: string | null;
