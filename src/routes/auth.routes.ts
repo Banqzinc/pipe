@@ -1,31 +1,42 @@
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { loadConfig } from '../config';
 
 const router = Router();
 
-router.post('/login', (req: Request, res: Response) => {
-  const { secret } = req.body;
-
-  if (!secret || !AuthService.validateSecret(secret)) {
-    res.status(401).json({ error: 'Invalid secret' });
-    return;
-  }
-
-  const token = AuthService.signToken();
+// Public — frontend fetches Google Client ID at runtime
+router.get('/config', (_req: Request, res: Response) => {
   const config = loadConfig();
+  res.json({ googleClientId: config.googleClientId });
+});
 
-  res.cookie('pipe_session', token, {
-    httpOnly: true,
-    secure: config.nodeEnv === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+// Google ID token login
+router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id_token } = req.body;
+    if (!id_token || typeof id_token !== 'string') {
+      res.status(400).json({ error: 'id_token is required' });
+      return;
+    }
 
-  res.json({ success: true });
+    const config = loadConfig();
+    const { email } = await AuthService.verifyGoogleToken(id_token, config);
+    const token = AuthService.signToken(email);
+
+    res.cookie('pipe_session', token, {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ success: true, email });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/logout', (_req: Request, res: Response) => {
@@ -33,7 +44,17 @@ router.post('/logout', (_req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-router.get('/me', authMiddleware, (_req: Request, res: Response) => {
+router.get('/me', authMiddleware, (req: Request, res: Response) => {
+  const token = req.cookies?.pipe_session;
+  if (token) {
+    try {
+      const payload = AuthService.verifyToken(token);
+      res.json({ authenticated: true, email: payload.email ?? null });
+      return;
+    } catch {
+      // Fall through — API key auth doesn't have email
+    }
+  }
   res.json({ authenticated: true });
 });
 
