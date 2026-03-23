@@ -208,7 +208,7 @@ export class ReviewRunner {
     runId: string,
     allowedTools?: string[],
   ): Promise<string> {
-    const args = ['--print', '--output-format', 'json', '-p', prompt];
+    const args = ['--print', '--output-format', 'stream-json', '-p', prompt];
     if (allowedTools && allowedTools.length > 0) {
       args.push('--allowedTools', ...allowedTools);
     }
@@ -217,15 +217,18 @@ export class ReviewRunner {
       const child = spawn('claude', args, { cwd });
       const runRepo = AppDataSource.getRepository(ReviewRun);
 
-      let stdout = '';
+      let rawOutput = '';
+      let displayText = '';
+      let resultLine = '';
       let stderr = '';
       let lastFlushedLength = 0;
+      let lineBuffer = '';
 
-      // Flush accumulated stdout to DB every 2 seconds
+      // Flush accumulated display text to DB every 2 seconds
       const flushInterval = setInterval(() => {
-        if (stdout.length > lastFlushedLength) {
-          lastFlushedLength = stdout.length;
-          runRepo.update(runId, { cli_output: stdout }).catch((err) => {
+        if (displayText.length > lastFlushedLength) {
+          lastFlushedLength = displayText.length;
+          runRepo.update(runId, { cli_output: displayText }).catch((err) => {
             logger.warn({ runId, err }, 'Failed to flush cli_output');
           });
         }
@@ -238,7 +241,35 @@ export class ReviewRunner {
       }, CLI_TIMEOUT_MS);
 
       child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString();
+        const text = chunk.toString();
+        rawOutput += text;
+        lineBuffer += text;
+
+        // Process complete newline-delimited JSON lines
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+
+            // content_block_delta → accumulate text for live display
+            if (
+              event.type === 'content_block_delta' &&
+              event.delta?.type === 'text_delta'
+            ) {
+              displayText += event.delta.text ?? '';
+            }
+
+            // Capture the final result event for parseToolkitOutput
+            if (event.type === 'result') {
+              resultLine = line;
+            }
+          } catch {
+            // Non-JSON line — ignore
+          }
+        }
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
@@ -249,10 +280,24 @@ export class ReviewRunner {
         clearInterval(flushInterval);
         clearTimeout(timeout);
 
-        // Final flush
-        runRepo.update(runId, { cli_output: stdout }).catch((err) => {
-          logger.warn({ runId, err }, 'Failed final cli_output flush');
-        });
+        // Process any remaining data in line buffer
+        if (lineBuffer.trim()) {
+          try {
+            const event = JSON.parse(lineBuffer);
+            if (event.type === 'result') {
+              resultLine = lineBuffer;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Final flush of display text
+        if (displayText.length > lastFlushedLength) {
+          runRepo.update(runId, { cli_output: displayText }).catch((err) => {
+            logger.warn({ runId, err }, 'Failed final cli_output flush');
+          });
+        }
 
         if (code !== 0) {
           reject(
@@ -260,8 +305,12 @@ export class ReviewRunner {
               `CLI exited with code ${code}${stderr ? `: ${stderr.slice(0, 500)}` : ''}`,
             ),
           );
+        } else if (resultLine) {
+          // Return the result event JSON — parseToolkitOutput handles the envelope
+          resolve(resultLine);
         } else {
-          resolve(stdout);
+          // Fallback: return raw output
+          resolve(rawOutput);
         }
       });
 
