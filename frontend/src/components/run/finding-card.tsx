@@ -60,9 +60,9 @@ export function FindingCard({
   const [showFix, setShowFix] = useState(false);
 
   const isPending =
-    finding.status === 'pending';
-  const isAccepted =
-    finding.status === 'accepted' || finding.status === 'edited';
+    finding.status === 'pending' || finding.status === 'edited';
+  const isAccepted = finding.status === 'accepted';
+  const isEdited = finding.status === 'edited';
   const isRejected = finding.status === 'rejected';
   const isPosted = finding.status === 'posted';
 
@@ -74,7 +74,7 @@ export function FindingCard({
 
   const opacityCls = isRejected
     ? 'opacity-40'
-    : isAccepted || isPosted
+    : isAccepted || isPosted || isEdited
       ? 'opacity-80'
       : '';
 

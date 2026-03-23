@@ -216,19 +216,19 @@ function RunPage() {
         case 'a': {
           e.preventDefault();
           const f = getFocusedFinding();
-          if (f && f.status === 'pending') handleAccept(f.id);
+          if (f && (f.status === 'pending' || f.status === 'edited')) handleAccept(f.id);
           break;
         }
         case 'r': {
           e.preventDefault();
           const f = getFocusedFinding();
-          if (f && f.status === 'pending') handleReject(f.id);
+          if (f && (f.status === 'pending' || f.status === 'edited')) handleReject(f.id);
           break;
         }
         case 'e': {
           e.preventDefault();
           const f = getFocusedFinding();
-          if (f && f.status === 'pending') handleStartEdit(f.id);
+          if (f && (f.status === 'pending' || f.status === 'edited')) handleStartEdit(f.id);
           break;
         }
         case 'R':
