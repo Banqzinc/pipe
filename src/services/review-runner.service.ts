@@ -208,7 +208,7 @@ export class ReviewRunner {
     runId: string,
     allowedTools?: string[],
   ): Promise<string> {
-    const args = ['--print', '--output-format', 'stream-json', '-p', prompt];
+    const args = ['--print', '--verbose', '--output-format', 'stream-json', '-p', prompt];
     if (allowedTools && allowedTools.length > 0) {
       args.push('--allowedTools', ...allowedTools);
     }
