@@ -7,6 +7,7 @@ export interface GitHubPR {
   number: number;
   title: string;
   state: string;
+  draft: boolean;
   user: { login: string };
   head: { sha: string; ref: string };
   base: { ref: string };

@@ -50,6 +50,7 @@ export class SyncService {
           base_branch: ghPr.base.ref,
           head_sha: ghPr.head.sha,
           status: PrStatus.Open,
+          is_draft: ghPr.draft,
           linear_ticket_id: linearTicket,
         },
         {

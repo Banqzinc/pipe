@@ -50,7 +50,8 @@ export class WebhookService {
     switch (action) {
       case 'opened':
       case 'synchronize':
-      case 'reopened': {
+      case 'reopened':
+      case 'ready_for_review': {
         const linearTicket = SyncService.extractLinearTicket(
           ghPr.head.ref,
           ghPr.body,
@@ -66,6 +67,7 @@ export class WebhookService {
             base_branch: ghPr.base.ref,
             head_sha: ghPr.head.sha,
             status: PrStatus.Open,
+            is_draft: ghPr.draft ?? false,
             linear_ticket_id: linearTicket,
           },
           {
@@ -110,6 +112,14 @@ export class WebhookService {
             pr: ghPr.number,
           },
           'PR closed via webhook',
+        );
+        break;
+      }
+
+      case 'converted_to_draft': {
+        await prRepo.update(
+          { repo_id: repo.id, github_pr_number: ghPr.number },
+          { is_draft: true },
         );
         break;
       }
