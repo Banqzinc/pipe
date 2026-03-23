@@ -50,6 +50,10 @@ function RunPage() {
   const [showCustomize, setShowCustomize] = useState(false);
   const cliOutputRef = useRef<HTMLPreElement>(null);
 
+  // Post feedback state
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postSuccess, setPostSuccess] = useState<string | null>(null);
+
   const findings = findingsData?.findings ?? [];
   const counts = findingsData?.counts ?? {
     total: 0,
@@ -155,8 +159,23 @@ function RunPage() {
     ) {
       return;
     }
-    postToGithub.mutate();
+    setPostError(null);
+    postToGithub.mutate(undefined, {
+      onSuccess: (data) => {
+        setPostSuccess(`Posted ${data.posted_count} findings to GitHub`);
+      },
+      onError: (err) => {
+        setPostError(err instanceof Error ? err.message : 'Failed to post to GitHub');
+      },
+    });
   }, [postToGithub, isReadOnly, isStale]);
+
+  // Auto-dismiss success banner after 5s
+  useEffect(() => {
+    if (!postSuccess) return;
+    const timer = setTimeout(() => setPostSuccess(null), 5000);
+    return () => clearTimeout(timer);
+  }, [postSuccess]);
 
   const handleExport = useCallback(() => {
     if (isReadOnly || isStale) return;
@@ -513,6 +532,9 @@ function RunPage() {
           onExport={handleExport}
           onRejectNitpicks={handleRejectNitpicks}
           isPosting={postToGithub.isPending || exportFindings.isPending}
+          postError={postError}
+          postSuccess={postSuccess}
+          onDismissError={() => setPostError(null)}
         />
       )}
 

@@ -9,6 +9,9 @@ interface PostBarProps {
   onExport: () => void;
   onRejectNitpicks: () => void;
   isPosting: boolean;
+  postError: string | null;
+  postSuccess: string | null;
+  onDismissError: () => void;
 }
 
 export function PostBar({
@@ -20,12 +23,35 @@ export function PostBar({
   onExport,
   onRejectNitpicks,
   isPosting,
+  postError,
+  postSuccess,
+  onDismissError,
 }: PostBarProps) {
   const acceptedCount = counts.accepted + counts.edited;
   const actionDisabled = isStale || hasPost || isPosting;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 border-t border-gray-800 backdrop-blur-sm z-50">
+      {/* Error banner */}
+      {postError && (
+        <div className="bg-red-900/80 border-b border-red-700 px-4 py-2 flex items-center justify-between text-sm text-red-200">
+          <span>{postError}</span>
+          <button
+            type="button"
+            onClick={onDismissError}
+            className="ml-4 text-red-300 hover:text-red-100 transition-colors"
+            aria-label="Dismiss error"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+      {/* Success banner */}
+      {postSuccess && (
+        <div className="bg-green-900/80 border-b border-green-700 px-4 py-2 text-sm text-green-200">
+          {postSuccess}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
         {/* Left: counts */}
         <div className="flex items-center gap-4 text-sm">
