@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { SplitButton } from '../../components/common/split-button.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
@@ -31,6 +32,15 @@ function RunPage() {
   const postToGithub = usePostToGithub(id);
   const exportFindings = useExportFindings(id);
   const createRun = useCreateRun();
+
+  const queryClient = useQueryClient();
+
+  // Invalidate findings when run completes
+  useEffect(() => {
+    if (run?.status === 'completed' || run?.status === 'partial') {
+      void queryClient.invalidateQueries({ queryKey: ['findings', id] });
+    }
+  }, [run?.status, id, queryClient]);
 
   // Findings state management
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -382,13 +392,26 @@ function RunPage() {
           </div>
         )}
 
-        {/* Completed state: brief + findings */}
+        {/* Completed state: findings */}
         {isComplete && (
           <>
-            <ReviewBrief
-              brief={run.brief}
-              riskSignals={run.risk_signals}
-            />
+            {run.cli_output && !findingsData?.findings?.length && (
+              <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">
+                <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 font-medium">
+                  Review Output
+                </div>
+                <pre className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {run.cli_output}
+                </pre>
+              </div>
+            )}
+
+            {findingsData === undefined && (
+              <div className="flex items-center gap-3 py-4">
+                <Spinner />
+                <span className="text-gray-400 text-sm">Loading findings...</span>
+              </div>
+            )}
 
             {/* View Prompt */}
             {run.prompt && (
