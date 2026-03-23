@@ -55,6 +55,7 @@ export interface RunDetail {
   error_message: string | null;
   prompt: string | null;
   cli_output: string | null;
+  toolkit_raw_output: string | null;
   has_post: boolean;
   post: {
     github_review_id: number | string;
@@ -72,7 +73,7 @@ export function useRun(id: string) {
     enabled: !!id,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'queued' || status === 'running' ? 3000 : false;
+      return status === 'queued' || status === 'running' ? 10000 : false;
     },
   });
 }

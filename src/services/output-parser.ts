@@ -76,32 +76,74 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     };
   }
 
-  // Step 1b: Unwrap Claude CLI --output-format json envelope
+  // Step 1b: Unwrap Claude CLI --output-format stream-json / json envelope
   // The CLI wraps responses as {"type":"result","result":"<content string>"}
+  // With extended thinking, result may be an array of content blocks:
+  //   [{"type":"thinking","thinking":"..."}, {"type":"text","text":"..."}]
   if (
     parsed &&
     typeof parsed === 'object' &&
     'type' in (parsed as any) &&
     (parsed as any).type === 'result' &&
-    'result' in (parsed as any) &&
-    typeof (parsed as any).result === 'string'
+    'result' in (parsed as any)
   ) {
-    let inner = (parsed as any).result as string;
-    // Strip markdown code fences if present
-    const fenceMatch = inner.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-    if (fenceMatch) {
-      inner = fenceMatch[1].trim();
+    let inner: string;
+
+    const resultField = (parsed as any).result;
+    if (typeof resultField === 'string') {
+      inner = resultField;
+    } else if (Array.isArray(resultField)) {
+      // Extended thinking: extract text from content blocks
+      const textBlock = resultField.find(
+        (block: any) => block.type === 'text' && typeof block.text === 'string',
+      );
+      inner = textBlock?.text ?? '';
+    } else {
+      inner = '';
     }
-    try {
-      parsed = JSON.parse(inner);
-    } catch {
-      return {
-        brief: null,
-        findings: [],
-        rawOutput: rawJson,
-        parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
-        isPartial: false,
-      };
+
+    if (inner) {
+      // Try parsing as-is first (model returned pure JSON)
+      try {
+        parsed = JSON.parse(inner);
+      } catch {
+        // Strip markdown code fences if present.
+        // Use greedy match to handle embedded code fences inside JSON string values.
+        const fenceMatch = inner.match(/```(?:json)?\s*\n([\s\S]+)\n```/);
+        if (fenceMatch) {
+          try {
+            parsed = JSON.parse(fenceMatch[1].trim());
+          } catch {
+            // Fence extraction failed — fall through to regex extraction
+          }
+        }
+
+        // Fallback: extract JSON object from raw text by matching outermost { ... }
+        if (!parsed) {
+          const jsonMatch = inner.match(/\{[\s\S]*"brief"[\s\S]*"findings"[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch {
+              return {
+                brief: null,
+                findings: [],
+                rawOutput: rawJson,
+                parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
+                isPartial: false,
+              };
+            }
+          } else {
+            return {
+              brief: null,
+              findings: [],
+              rawOutput: rawJson,
+              parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
+              isPartial: false,
+            };
+          }
+        }
+      }
     }
   }
 

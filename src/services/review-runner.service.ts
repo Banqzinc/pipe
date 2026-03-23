@@ -10,6 +10,7 @@ import { ContextPackBuilder, type ContextPack } from './context-pack.service';
 import { analyzeRisk } from './risk-engine';
 import { parseToolkitOutput, type ParsedFinding } from './output-parser';
 import { logger } from '../lib/logger';
+import { runEventBus } from '../lib/run-event-bus';
 import { loadConfig } from '../config';
 
 const CLI_TIMEOUT_MS = 300_000; // 5 minutes
@@ -31,6 +32,26 @@ function mapSeverity(severity: ParsedFinding['severity']): FindingSeverity {
     case 'nitpick':
       return FindingSeverity.Nitpick;
   }
+}
+
+/** Extract displayable content from a CLI stream-json event line.
+ *  Returns { type, text } for content deltas, or null for non-content events. */
+export function extractStreamContent(
+  event: unknown,
+): { type: 'cli_text' | 'cli_thinking'; text: string } | null {
+  if (!event || typeof event !== 'object') return null;
+  const ev = event as Record<string, unknown>;
+  // Unwrap stream_event envelope: {"type":"stream_event","event":{...}}
+  const inner = (ev.type === 'stream_event' ? ev.event : ev) as Record<string, any> | null;
+  if (!inner || inner.type !== 'content_block_delta') return null;
+
+  if (inner.delta?.type === 'text_delta') {
+    return { type: 'cli_text', text: inner.delta.text ?? '' };
+  }
+  if (inner.delta?.type === 'thinking_delta') {
+    return { type: 'cli_thinking', text: inner.delta.thinking ?? '' };
+  }
+  return null;
 }
 
 export class ReviewRunner {
@@ -74,6 +95,7 @@ export class ReviewRunner {
     });
 
     logger.info({ runId }, 'Run started');
+    runEventBus.emit(runId, { type: 'phase', phase: 'context', message: 'Building context pack...' });
 
     // Load the run with PR relation
     const run = await runRepo.findOne({
@@ -97,6 +119,7 @@ export class ReviewRunner {
     });
 
     // 3. Run risk engine on changed files
+    runEventBus.emit(runId, { type: 'phase', phase: 'risk', message: 'Running risk analysis...' });
     const riskAnalysis = analyzeRisk(
       contextPack.changedFiles,
       contextPack.diff.split('\n').length,
@@ -132,6 +155,7 @@ export class ReviewRunner {
     }
 
     logger.info({ runId, repoDir, allowedTools }, 'Spawning CLI');
+    runEventBus.emit(runId, { type: 'phase', phase: 'cli', message: 'Starting Claude review...' });
     const rawOutput = await this.spawnCli(prompt, repoDir, runId, allowedTools);
 
     // 6. Parse output
@@ -146,6 +170,8 @@ export class ReviewRunner {
       },
       'Output parsed',
     );
+
+    runEventBus.emit(runId, { type: 'phase', phase: 'parsing', message: 'Parsing findings...' });
 
     // 7. Store brief in run record
     // 9. Store raw output in toolkit_raw_output
@@ -200,6 +226,7 @@ export class ReviewRunner {
     });
 
     logger.info({ runId, status: finalStatus }, 'Run finished');
+    runEventBus.emit(runId, { type: 'done', status: finalStatus });
   }
 
   private async spawnCli(
@@ -208,7 +235,13 @@ export class ReviewRunner {
     runId: string,
     allowedTools?: string[],
   ): Promise<string> {
-    const args = ['--print', '--verbose', '--output-format', 'stream-json', '-p', prompt];
+    const args = [
+      '--print',
+      '--verbose',
+      '--output-format', 'stream-json',
+      '--include-partial-messages',
+      '-p', prompt,
+    ];
     if (allowedTools && allowedTools.length > 0) {
       args.push('--allowedTools', ...allowedTools);
     }
@@ -224,7 +257,7 @@ export class ReviewRunner {
       let lastFlushedLength = 0;
       let lineBuffer = '';
 
-      // Flush accumulated display text to DB every 2 seconds
+      // Flush accumulated display text to DB every 5 seconds
       const flushInterval = setInterval(() => {
         if (displayText.length > lastFlushedLength) {
           lastFlushedLength = displayText.length;
@@ -232,7 +265,7 @@ export class ReviewRunner {
             logger.warn({ runId, err }, 'Failed to flush cli_output');
           });
         }
-      }, 2_000);
+      }, 5_000);
 
       // Manual timeout
       const timeout = setTimeout(() => {
@@ -254,12 +287,10 @@ export class ReviewRunner {
           try {
             const event = JSON.parse(line);
 
-            // content_block_delta → accumulate text for live display
-            if (
-              event.type === 'content_block_delta' &&
-              event.delta?.type === 'text_delta'
-            ) {
-              displayText += event.delta.text ?? '';
+            const content = extractStreamContent(event);
+            if (content) {
+              displayText += content.text;
+              runEventBus.emit(runId, content);
             }
 
             // Capture the final result event for parseToolkitOutput
@@ -350,6 +381,8 @@ export class ReviewRunner {
             { runId, errorMessage },
             'Run failed after all retries',
           );
+          runEventBus.emit(runId, { type: 'error', message: errorMessage });
+          runEventBus.emit(runId, { type: 'done', status: RunStatus.Failed });
         }
       }
     }

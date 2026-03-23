@@ -138,4 +138,30 @@ describe('parseToolkitOutput', () => {
     expect(result.isPartial).toBe(true);
     expect(result.parseErrors.length).toBeGreaterThan(0);
   });
+
+  it('parses CLI result envelope with embedded code fences in finding body', () => {
+    const reviewJson = JSON.stringify({
+      brief: { critical_issues: [], important_issues: [], suggestions: [], strengths: [], recommended_actions: [] },
+      findings: [{
+        file_path: 'docker-compose.yml',
+        start_line: 10,
+        end_line: null,
+        severity: 'suggestion',
+        confidence: 0.8,
+        category: 'ops',
+        title: 'Add healthcheck',
+        body: 'Add a healthcheck:\n\n```yaml\nhealthcheck:\n  test: ["CMD", "pg_isready"]\n```\n\nThis ensures readiness.',
+        suggested_fix: null,
+        rule_ref: null,
+      }],
+    });
+    const cliOutput = JSON.stringify({
+      type: 'result',
+      result: `Here is my review:\n\n\`\`\`json\n${reviewJson}\n\`\`\``,
+    });
+    const result = parseToolkitOutput(cliOutput);
+    expect(result.parseErrors).toHaveLength(0);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].title).toBe('Add healthcheck');
+  });
 });

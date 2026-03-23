@@ -6,6 +6,8 @@ import { ReviewRun } from '../entities/ReviewRun.entity';
 import { ReviewPost } from '../entities/ReviewPost.entity';
 import { RunStatus } from '../entities/enums';
 import { AppError } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { runEventBus } from '../lib/run-event-bus';
 import { reviewRunner } from '../services/review-runner.service';
 import { postingService } from '../services/posting.service';
 
@@ -52,6 +54,80 @@ router.post(
       });
 
       res.status(201).json({ id: run.id, status: 'queued' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/runs/:id/stream — SSE stream for live run output
+router.get(
+  '/runs/:id/stream',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const runId = req.params.id as string;
+      const runRepo = AppDataSource.getRepository(ReviewRun);
+
+      const run = await runRepo.findOneBy({ id: runId });
+      if (!run) {
+        throw new AppError('Run not found', 404, 'NOT_FOUND');
+      }
+
+      // SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      const sendEvent = (id: number, data: unknown) => {
+        res.write(`id: ${id}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
+      // Terminal state — send current output and close
+      const terminalStates: string[] = [RunStatus.Completed, RunStatus.Failed, RunStatus.Partial];
+      if (terminalStates.includes(run.status)) {
+        if (run.cli_output) {
+          sendEvent(0, { type: 'init', text: run.cli_output });
+        }
+        sendEvent(1, { type: 'done', status: run.status, error_message: run.error_message });
+        res.end();
+        return;
+      }
+
+      // Active run — replay buffered events then subscribe
+      const lastEventId = req.headers['last-event-id']
+        ? Number(req.headers['last-event-id'])
+        : undefined;
+
+      // Replay buffered events (for reconnection or first connection)
+      const buffered = runEventBus.getBufferedEvents(runId, lastEventId ?? undefined);
+      if (buffered.length > 0) {
+        for (const e of buffered) {
+          sendEvent(e.eventId, e.event);
+        }
+      } else if (!lastEventId && run.cli_output) {
+        // Fallback: no buffer yet, send DB output
+        sendEvent(0, { type: 'init', text: run.cli_output });
+      }
+
+      const unsubscribe = runEventBus.subscribe(runId, (buffered) => {
+        sendEvent(buffered.eventId, buffered.event);
+        if (buffered.event.type === 'done') {
+          clearInterval(heartbeat);
+          res.end();
+        }
+      });
+
+      // Heartbeat every 15s to keep connection alive
+      const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+      }, 15_000);
+
+      req.on('close', () => {
+        unsubscribe();
+        clearInterval(heartbeat);
+      });
     } catch (err) {
       next(err);
     }
@@ -110,6 +186,7 @@ router.get(
         error_message: run.error_message,
         prompt: run.prompt,
         cli_output: run.cli_output,
+        toolkit_raw_output: run.toolkit_raw_output,
         has_post: !!post,
         post: post
           ? {

@@ -13,6 +13,7 @@ import {
   useExportFindings,
 } from '../../api/mutations/findings.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useRunStream } from '../../hooks/use-run-stream.ts';
 import { ReviewBrief } from '../../components/run/review-brief.tsx';
 import { FindingList } from '../../components/run/finding-list.tsx';
 import { StaleBanner } from '../../components/run/stale-banner.tsx';
@@ -35,6 +36,10 @@ function RunPage() {
 
   const queryClient = useQueryClient();
 
+  // SSE stream for live output
+  const isInProgress = run?.status === 'queued' || run?.status === 'running';
+  const stream = useRunStream(id, isInProgress ?? false);
+
   // Invalidate findings when run completes
   useEffect(() => {
     if (run?.status === 'completed' || run?.status === 'partial') {
@@ -47,6 +52,7 @@ function RunPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const [rawOutputExpanded, setRawOutputExpanded] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
   const cliOutputRef = useRef<HTMLPreElement>(null);
 
@@ -88,11 +94,12 @@ function RunPage() {
   }, [sortedFindings.length, focusedIndex]);
 
   // Auto-scroll CLI output
+  const liveOutput = stream.cliOutput || run?.cli_output || '';
   useEffect(() => {
     if (cliOutputRef.current) {
       cliOutputRef.current.scrollTop = cliOutputRef.current.scrollHeight;
     }
-  }, [run?.cli_output]);
+  }, [liveOutput]);
 
   // Get focused finding
   const getFocusedFinding = useCallback((): FindingItem | undefined => {
@@ -312,8 +319,6 @@ function RunPage() {
   }
 
   // --- Status helpers ---
-  const isInProgress =
-    run.status === 'queued' || run.status === 'running';
   const isFailed = run.status === 'failed';
   const repoLabel = `${run.pr.repo.github_owner}/${run.pr.repo.github_name}`;
 
@@ -382,11 +387,11 @@ function RunPage() {
             <div className="flex items-center gap-3 py-4">
               <Spinner />
               <span className="text-gray-400 text-sm">
-                Review in progress...
+                {stream.phaseMessage ?? 'Review in progress...'}
               </span>
             </div>
 
-            {run.cli_output && (
+            {liveOutput && (
               <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">
                 <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 font-medium">
                   Live Output
@@ -395,7 +400,7 @@ function RunPage() {
                   ref={cliOutputRef}
                   className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 >
-                  {run.cli_output}
+                  {liveOutput}
                 </pre>
               </div>
             )}
@@ -419,21 +424,37 @@ function RunPage() {
         {/* Completed state: findings */}
         {isComplete && (
           <>
-            {run.cli_output && !findingsData?.findings?.length && (
-              <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 font-medium">
-                  Review Output
-                </div>
-                <pre className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {run.cli_output}
-                </pre>
-              </div>
-            )}
-
             {findingsData === undefined && (
               <div className="flex items-center gap-3 py-4">
                 <Spinner />
                 <span className="text-gray-400 text-sm">Loading findings...</span>
+              </div>
+            )}
+
+            {/* Raw Output */}
+            {run.cli_output && (
+              <div className="rounded-lg border border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setRawOutputExpanded(!rawOutputExpanded)}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-gray-200 transition-colors text-left"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform ${rawOutputExpanded ? 'rotate-90' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  Raw Output
+                </button>
+                {rawOutputExpanded && (
+                  <pre className="px-4 pb-4 text-xs text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                    {run.cli_output}
+                  </pre>
+                )}
               </div>
             )}
 

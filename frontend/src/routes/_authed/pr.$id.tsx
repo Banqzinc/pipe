@@ -21,7 +21,10 @@ function PrDetailPage() {
   const { data: pr, isLoading, error } = usePullRequest(id);
   const { data: stackPrs } = useQuery({
     queryKey: ['prs', id, 'stack'],
-    queryFn: () => api.get<PullRequestListItem[]>(`/prs/${id}/stack`),
+    queryFn: async () => {
+      const res = await api.get<{ stack: PullRequestListItem[] }>(`/prs/${id}/stack`);
+      return res.stack;
+    },
     enabled: !!pr?.stack_id,
   });
 
