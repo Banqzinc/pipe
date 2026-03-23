@@ -5,14 +5,11 @@ import type { Config } from '../../config';
 // Mock google-auth-library
 const mockVerifyIdToken = vi.hoisted(() => vi.fn());
 
-vi.mock('google-auth-library', () => {
-  return {
-    // biome-ignore lint/complexity/useArrowFunction: constructor mock requires function keyword
-    OAuth2Client: vi.fn(function () {
-      this.verifyIdToken = mockVerifyIdToken;
-    }),
-  };
-});
+vi.mock('google-auth-library', () => ({
+  OAuth2Client: class {
+    verifyIdToken = mockVerifyIdToken;
+  },
+}));
 
 const testConfig: Config = {
   port: 3100,
