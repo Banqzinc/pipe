@@ -43,13 +43,7 @@ npm run dev                   # Start dev server on port 3100
 
 ### 1Password Integration
 
-Use `op run` to inject secrets from 1Password:
-
-```bash
-npm run dev:op
-```
-
-This runs with `op run --no-masking --env-file=env.default --env-file=.env --` to merge default env vars with 1Password-managed secrets.
+`npm run dev` uses `op run` to resolve secrets from 1Password. `env.default` contains `op://pipe_$DEPLOY_ENV/...` references that are expanded at runtime. `DEPLOY_ENV=local` is set by the dev script, so secrets resolve from the `pipe_local` vault/section.
 
 ### Environment Variables
 
