@@ -46,6 +46,9 @@ export class PullRequest {
   @Column({ type: 'enum', enum: PrStatus, default: PrStatus.Open })
   status!: PrStatus;
 
+  @Column({ type: 'boolean', default: false })
+  is_draft!: boolean;
+
   @Column({ type: 'varchar', nullable: true })
   linear_ticket_id!: string | null;
 
