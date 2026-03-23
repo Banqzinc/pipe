@@ -13,7 +13,7 @@ import { logger } from '../lib/logger';
 import { runEventBus } from '../lib/run-event-bus';
 import { loadConfig } from '../config';
 
-const CLI_TIMEOUT_MS = 300_000; // 5 minutes
+const CLI_TIMEOUT_MS = 900_000; // 15 minutes
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5_000;
 
@@ -278,7 +278,9 @@ export class ReviewRunner {
       // Manual timeout
       const timeout = setTimeout(() => {
         child.kill('SIGTERM');
-        reject(new Error(`CLI timed out after ${CLI_TIMEOUT_MS}ms`));
+        const err = new Error(`CLI timed out after ${CLI_TIMEOUT_MS}ms`);
+        (err as any).isTimeout = true;
+        reject(err);
       }, CLI_TIMEOUT_MS);
 
       child.stdout.on('data', (chunk: Buffer) => {
@@ -374,7 +376,8 @@ export class ReviewRunner {
           'Run attempt failed',
         );
 
-        if (attempt < MAX_RETRIES) {
+        const isTimeout = err instanceof Error && (err as any).isTimeout;
+        if (attempt < MAX_RETRIES && !isTimeout) {
           await sleep(RETRY_DELAY_MS);
         } else {
           // All retries exhausted — mark as failed
