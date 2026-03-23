@@ -103,7 +103,7 @@ router.get(
         risk_signals: run.risk_signals,
         error_message: run.error_message,
         prompt: run.prompt,
-        cli_output: run.status === 'running' ? run.cli_output : null,
+        cli_output: run.cli_output,
         has_post: !!post,
         post: post
           ? {
