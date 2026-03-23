@@ -1,95 +1,107 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AuthService } from '../../services/auth.service';
+import type { Config } from '../../config';
+
+// Mock google-auth-library
+const mockVerifyIdToken = vi.hoisted(() => vi.fn());
+
+vi.mock('google-auth-library', () => {
+  return {
+    // biome-ignore lint/complexity/useArrowFunction: constructor mock requires function keyword
+    OAuth2Client: vi.fn(function () {
+      this.verifyIdToken = mockVerifyIdToken;
+    }),
+  };
+});
+
+const testConfig: Config = {
+  port: 3100,
+  databaseUrl: 'postgres://localhost/test',
+  jwtSecret: 'test-jwt-secret-at-least-16-chars',
+  encryptionKey: 'a'.repeat(64),
+  reposDir: './repos',
+  nodeEnv: 'test',
+  origin: 'http://localhost:5173',
+  googleClientId: 'test-client-id.apps.googleusercontent.com',
+  allowedDomains: 'quidkey.com, example.com',
+};
 
 describe('AuthService', () => {
-  let tmpDir: string;
-
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipe-auth-test-'));
-    // Set required env for JWT signing
-    process.env.JWT_SECRET = 'test-jwt-secret-at-least-16-chars';
+    process.env.JWT_SECRET = testConfig.jwtSecret;
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
+  describe('verifyGoogleToken', () => {
+    it('returns email and name for valid token with allowed domain', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'user@quidkey.com',
+          email_verified: true,
+          name: 'Test User',
+        }),
+      });
 
-  describe('initSecret', () => {
-    it('creates a .pipe-secret file and returns a secret', async () => {
-      const secret = await AuthService.initSecret(tmpDir);
-
-      expect(secret).toBeTruthy();
-      expect(typeof secret).toBe('string');
-      expect(secret.length).toBe(32); // 16 bytes hex-encoded = 32 chars
-
-      const filePath = path.join(tmpDir, '.pipe-secret');
-      expect(fs.existsSync(filePath)).toBe(true);
-      expect(fs.readFileSync(filePath, 'utf-8').trim()).toBe(secret);
+      const result = await AuthService.verifyGoogleToken('valid-token', testConfig);
+      expect(result).toEqual({ email: 'user@quidkey.com', name: 'Test User' });
     });
 
-    it('reads existing file on subsequent calls', async () => {
-      const firstSecret = await AuthService.initSecret(tmpDir);
-      const secondSecret = await AuthService.initSecret(tmpDir);
+    it('rejects token with disallowed domain', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'user@evil.com',
+          email_verified: true,
+        }),
+      });
 
-      expect(secondSecret).toBe(firstSecret);
-    });
-  });
-
-  describe('validateSecret', () => {
-    it('returns true for correct secret', async () => {
-      const secret = await AuthService.initSecret(tmpDir);
-      const result = AuthService.validateSecret(secret);
-
-      expect(result).toBe(true);
+      await expect(
+        AuthService.verifyGoogleToken('valid-token', testConfig),
+      ).rejects.toThrow('Domain not allowed');
     });
 
-    it('returns false for wrong secret', async () => {
-      await AuthService.initSecret(tmpDir);
-      const result = AuthService.validateSecret('wrong-secret-value');
+    it('rejects token with unverified email', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'user@quidkey.com',
+          email_verified: false,
+        }),
+      });
 
-      expect(result).toBe(false);
+      await expect(
+        AuthService.verifyGoogleToken('valid-token', testConfig),
+      ).rejects.toThrow('Email not verified');
+    });
+
+    it('rejects invalid token', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('Invalid token'));
+
+      await expect(
+        AuthService.verifyGoogleToken('bad-token', testConfig),
+      ).rejects.toThrow();
     });
   });
 
   describe('signToken / verifyToken', () => {
-    it('signToken produces a valid JWT', async () => {
-      await AuthService.initSecret(tmpDir);
-      const token = AuthService.signToken();
-
-      expect(token).toBeTruthy();
-      expect(typeof token).toBe('string');
-      // JWT has 3 parts separated by dots
+    it('signToken produces a valid JWT with email', () => {
+      const token = AuthService.signToken('user@quidkey.com');
       expect(token.split('.').length).toBe(3);
-    });
 
-    it('verifyToken accepts valid token', async () => {
-      await AuthService.initSecret(tmpDir);
-      const token = AuthService.signToken();
       const payload = AuthService.verifyToken(token);
-
-      expect(payload).toBeTruthy();
-      expect((payload as any).type).toBe('session');
+      expect(payload.type).toBe('session');
+      expect(payload.email).toBe('user@quidkey.com');
     });
 
-    it('verifyToken rejects invalid token', async () => {
-      await AuthService.initSecret(tmpDir);
-
+    it('verifyToken rejects invalid token', () => {
       expect(() => AuthService.verifyToken('invalid.token.here')).toThrow();
     });
 
     it('verifyToken rejects expired token', async () => {
-      await AuthService.initSecret(tmpDir);
-      // Sign a token with very short (already expired) ttl by using jwt directly
       const jwt = await import('jsonwebtoken');
       const token = jwt.default.sign(
-        { type: 'session' },
+        { type: 'session', email: 'user@quidkey.com' },
         process.env.JWT_SECRET!,
         { algorithm: 'HS256', expiresIn: '-1s' },
       );
-
       expect(() => AuthService.verifyToken(token)).toThrow();
     });
   });
