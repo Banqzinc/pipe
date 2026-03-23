@@ -10,6 +10,7 @@ export interface PullRequestDetail {
   branch_name: string;
   base_branch: string;
   status: string;
+  is_draft: boolean;
   head_sha: string;
   linear_ticket_id: string | null;
   notion_url: string | null;
@@ -37,6 +38,7 @@ export interface PullRequestListItem {
   branch_name: string;
   base_branch: string;
   status: string;
+  is_draft: boolean;
   head_sha: string;
   linear_ticket_id: string | null;
   notion_url: string | null;

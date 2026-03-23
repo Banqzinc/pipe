@@ -56,6 +56,11 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: 
               SELF
             </span>
           )}
+          {pr.is_draft && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-500/20 text-gray-400">
+              Draft
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-gray-500 text-xs">{pr.author}</span>
@@ -83,7 +88,7 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: 
       )}
 
       {/* Run Review button */}
-      {(!pr.latest_run || pr.latest_run.status === 'failed') && (
+      {(!pr.latest_run || pr.latest_run.status === 'failed') && !pr.is_draft && (
         <SplitButton
           label={isRunning ? 'Running...' : pr.latest_run?.status === 'failed' ? 'Re-run Review' : 'Run Review'}
           onClick={() => onRunReview(pr.id)}

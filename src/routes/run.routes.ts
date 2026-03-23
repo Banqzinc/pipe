@@ -30,6 +30,11 @@ router.post(
         throw new AppError('Pull request not found', 404, 'NOT_FOUND');
       }
 
+      if (pr.is_draft) {
+        res.status(400).json({ error: 'Cannot review a draft PR. Mark it as ready for review first.' });
+        return;
+      }
+
       const run = runRepo.create({
         pr_id: pr.id,
         head_sha: pr.head_sha,
@@ -95,6 +100,7 @@ router.get(
           head_sha: pr.head_sha, // current PR head SHA for stale detection
           linear_ticket_id: pr.linear_ticket_id,
           notion_url: pr.notion_url,
+          is_draft: pr.is_draft,
         },
         head_sha: run.head_sha, // SHA at time of run
         status: run.status,

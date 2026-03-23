@@ -16,6 +16,7 @@ export interface RunDetailPr {
   head_sha: string;
   linear_ticket_id: string | null;
   notion_url: string | null;
+  is_draft: boolean;
 }
 
 export interface BriefIssue {
