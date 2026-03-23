@@ -29,7 +29,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const qb = prRepo
       .createQueryBuilder('pr')
       .leftJoinAndSelect('pr.repo', 'repo')
-      .orderBy('pr.updated_at', 'DESC');
+      .orderBy('COALESCE(pr.github_updated_at, pr.updated_at)', 'DESC');
 
     if (status) {
       qb.andWhere('pr.status = :status', { status });
@@ -108,11 +108,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Apply filter after enrichment (needs latest_run info)
     let filtered = result;
     if (filter === 'needs_review') {
-      // No run or latest run incomplete
+      // No run or latest run incomplete; exclude drafts
       filtered = result.filter(
         (pr) =>
-          !pr.latest_run ||
-          !['completed', 'partial'].includes(pr.latest_run.status),
+          !pr.is_draft &&
+          (!pr.latest_run ||
+            !['completed', 'partial'].includes(pr.latest_run.status)),
       );
     } else if (filter === 'in_progress') {
       // Latest run has pending findings

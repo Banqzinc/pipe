@@ -9,6 +9,40 @@ import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { GitHubClient } from './github-client';
 
+/**
+ * Parse a unified diff to extract the valid line ranges on the RIGHT side (new file).
+ * Returns a map of file path → Set of valid line numbers for inline comments.
+ */
+function parseDiffLineMap(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  let currentFile: string | null = null;
+
+  for (const line of diff.split('\n')) {
+    // Detect file header: +++ b/path/to/file
+    if (line.startsWith('+++ b/')) {
+      currentFile = line.slice(6);
+      if (!result.has(currentFile)) {
+        result.set(currentFile, new Set());
+      }
+      continue;
+    }
+
+    // Detect hunk header: @@ -oldStart,oldCount +newStart,newCount @@
+    const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
+    if (hunkMatch && currentFile) {
+      const start = Number(hunkMatch[1]);
+      const count = hunkMatch[2] != null ? Number(hunkMatch[2]) : 1;
+      const lines = result.get(currentFile)!;
+      // All lines in this hunk range are valid comment targets
+      for (let i = start; i < start + count; i++) {
+        lines.add(i);
+      }
+    }
+  }
+
+  return result;
+}
+
 const SEVERITY_ORDER: Record<FindingSeverity, number> = {
   [FindingSeverity.Critical]: 0,
   [FindingSeverity.Warning]: 1,
@@ -66,19 +100,46 @@ export class PostingService {
       throw new AppError('No accepted findings to post', 400);
     }
 
-    // 6. Build GitHub review body
+    // 6. Fetch diff to validate comment line numbers
+    const diff = await client.getPRDiff(repo.github_owner, repo.github_name, pr.github_pr_number);
+    const diffLineMap = parseDiffLineMap(diff);
+
+    // 7. Build GitHub review body, separating valid inline comments from out-of-diff ones
+    const inlineComments: { path: string; line: number; side: 'RIGHT'; body: string }[] = [];
+    const bodyComments: string[] = [];
+
+    for (const f of findings) {
+      const commentBody =
+        f.status === FindingStatus.Edited && f.edited_body
+          ? f.edited_body
+          : `**${f.title}**\n\n${f.body}${f.suggested_fix ? `\n\n**Suggested fix:**\n\`\`\`\n${f.suggested_fix}\n\`\`\`` : ''}`;
+
+      const validLines = diffLineMap.get(f.file_path);
+      if (validLines && validLines.has(f.start_line)) {
+        inlineComments.push({
+          path: f.file_path,
+          line: f.start_line,
+          side: 'RIGHT' as const,
+          body: commentBody,
+        });
+      } else {
+        // Line not in diff — include as body comment
+        bodyComments.push(`**${f.file_path}:${f.start_line}** — ${commentBody}`);
+        logger.info(
+          { runId, file: f.file_path, line: f.start_line },
+          'Finding line not in diff, moving to review body',
+        );
+      }
+    }
+
+    const body = bodyComments.length > 0
+      ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
+      : '';
+
     const reviewBody = {
       event: 'COMMENT' as const,
-      body: '',
-      comments: findings.map((f) => ({
-        path: f.file_path,
-        line: f.start_line,
-        side: 'RIGHT' as const,
-        body:
-          f.status === FindingStatus.Edited && f.edited_body
-            ? f.edited_body
-            : `**${f.title}**\n\n${f.body}${f.suggested_fix ? `\n\n**Suggested fix:**\n\`\`\`\n${f.suggested_fix}\n\`\`\`` : ''}`,
-      })),
+      body,
+      comments: inlineComments,
     };
 
     // 7. Call client.createReview

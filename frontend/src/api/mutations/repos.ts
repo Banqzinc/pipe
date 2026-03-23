@@ -35,3 +35,15 @@ export function useSyncRepo() {
     },
   });
 }
+
+export function useSyncAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ synced: number; repos: number }>('/repos/sync'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['repos'] });
+      void queryClient.invalidateQueries({ queryKey: ['prs'] });
+    },
+  });
+}

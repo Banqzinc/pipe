@@ -117,6 +117,24 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// POST /api/repos/sync — Sync all repos
+router.post('/sync', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const repos = await repoRepository().find();
+    const syncService = new SyncService();
+    let totalSynced = 0;
+
+    for (const repo of repos) {
+      const synced = await syncService.syncRepo(repo.id);
+      totalSynced += synced;
+    }
+
+    res.json({ synced: totalSynced, repos: repos.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/repos/:id/sync — Trigger sync for a repo
 router.post('/:id/sync', async (req: Request, res: Response, next: NextFunction) => {
   try {

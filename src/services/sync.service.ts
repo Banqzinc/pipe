@@ -51,6 +51,7 @@ export class SyncService {
           head_sha: ghPr.head.sha,
           status: PrStatus.Open,
           is_draft: ghPr.draft,
+          github_updated_at: new Date(ghPr.updated_at),
           linear_ticket_id: linearTicket,
         },
         {

@@ -8,6 +8,7 @@ export interface GitHubPR {
   title: string;
   state: string;
   draft: boolean;
+  updated_at: string;
   user: { login: string };
   head: { sha: string; ref: string };
   base: { ref: string };
@@ -75,12 +76,17 @@ export class GitHubClient {
 
     if (!res.ok) {
       let errorMessage: string;
+      let errorBody: unknown;
       try {
-        const body = await res.json();
-        errorMessage = (body as { message?: string }).message ?? res.statusText;
+        errorBody = await res.json();
+        const msg = (errorBody as { message?: string }).message ?? res.statusText;
+        const errors = (errorBody as { errors?: { message?: string }[] }).errors;
+        const details = errors?.map((e) => e.message).filter(Boolean).join('; ');
+        errorMessage = details ? `${msg} — ${details}` : msg;
       } catch {
         errorMessage = res.statusText;
       }
+      logger.error({ url, status: res.status, errorBody }, 'GitHub API request failed');
       throw new AppError(`GitHub API error: ${errorMessage}`, res.status, 'GITHUB_API_ERROR');
     }
 

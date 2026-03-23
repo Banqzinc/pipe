@@ -146,7 +146,15 @@ export class ReviewRunner {
     const repo = pr.repo;
     const repoDir = path.join(config.reposDir, repo.github_owner, repo.github_name);
 
-    const allowedTools: string[] = [];
+    // Base tools the review skill needs (auto-approved in --print mode)
+    const allowedTools: string[] = [
+      'Skill',
+      'Read', 'Grep', 'Glob', 'LS',
+      'Bash',
+      'Agent', 'Task', 'TaskOutput', 'TaskStop',
+      'TodoWrite',
+      'WebFetch', 'WebSearch',
+    ];
     if (pr.linear_ticket_id) {
       allowedTools.push('mcp__claude_ai_Linear__*');
     }

@@ -49,6 +49,9 @@ export class PullRequest {
   @Column({ type: 'boolean', default: false })
   is_draft!: boolean;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  github_updated_at!: Date | null;
+
   @Column({ type: 'varchar', nullable: true })
   linear_ticket_id!: string | null;
 

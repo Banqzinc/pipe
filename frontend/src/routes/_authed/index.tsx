@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useSyncAll } from '../../api/mutations/repos.ts';
 import { PrTable } from '../../components/inbox/pr-table.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
 
@@ -16,7 +17,7 @@ const tabs: { key: FilterTab; label: string }[] = [
 ];
 
 function InboxPage() {
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [activeTab, setActiveTab] = useState<FilterTab>('needs_review');
   const [selectedRepo, setSelectedRepo] = useState<string>('');
 
   const filters = {
@@ -27,6 +28,7 @@ function InboxPage() {
   const { data, isLoading, error } = usePullRequests(filters);
   const { data: repos } = useRepos();
   const createRun = useCreateRun();
+  const syncAll = useSyncAll();
   const [customizePrId, setCustomizePrId] = useState<string | null>(null);
 
   // Fetch all PRs (unfiltered) for tab counts
@@ -110,21 +112,32 @@ function InboxPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Inbox</h1>
 
-        {/* Repo filter */}
-        {repos && repos.length > 1 && (
-          <select
-            value={selectedRepo}
-            onChange={(e) => setSelectedRepo(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => syncAll.mutate()}
+            disabled={syncAll.isPending}
+            className="px-3 py-1.5 text-sm font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <option value="">All repos</option>
-            {repos.map((repo) => (
-              <option key={repo.id} value={repo.id}>
-                {repo.github_owner}/{repo.github_name}
-              </option>
-            ))}
-          </select>
-        )}
+            {syncAll.isPending ? 'Syncing...' : 'Sync PRs'}
+          </button>
+
+          {/* Repo filter */}
+          {repos && repos.length > 1 && (
+            <select
+              value={selectedRepo}
+              onChange={(e) => setSelectedRepo(e.target.value)}
+              className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">All repos</option>
+              {repos.map((repo) => (
+                <option key={repo.id} value={repo.id}>
+                  {repo.github_owner}/{repo.github_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Filter tabs */}
