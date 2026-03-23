@@ -4,6 +4,7 @@ dist/
 *.env.*
 repos/
 .superpowers/
+.worktrees/
 *.log
 frontend/dist/
 frontend/node_modules/
