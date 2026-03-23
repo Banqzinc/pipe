@@ -7,7 +7,6 @@ import fs from 'fs';
 import { loadConfig } from './config';
 import { logger } from './lib/logger';
 import { AppDataSource } from './db/data-source';
-import { AuthService } from './services/auth.service';
 import { authRoutes } from './routes/auth.routes';
 import { authMiddleware } from './middleware/auth.middleware';
 import { errorMiddleware } from './middleware/error.middleware';
@@ -66,7 +65,6 @@ app.get('*path', (_req, res, next) => {
 app.use(errorMiddleware);
 
 async function start() {
-  await AuthService.initSecret(config.reposDir);
   await AppDataSource.initialize();
   logger.info('Database connected');
   app.listen(config.port, () => {
