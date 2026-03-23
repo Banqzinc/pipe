@@ -81,7 +81,7 @@ export function PrRow({ pr, onRunReview, isRunning, indented }: PrRowProps) {
       )}
 
       {/* Run Review button */}
-      {!pr.latest_run && (
+      {(!pr.latest_run || pr.latest_run.status === 'failed') && (
         <button
           type="button"
           onClick={(e) => {
@@ -91,7 +91,7 @@ export function PrRow({ pr, onRunReview, isRunning, indented }: PrRowProps) {
           disabled={isRunning}
           className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
         >
-          {isRunning ? 'Running...' : 'Run Review'}
+          {isRunning ? 'Running...' : pr.latest_run?.status === 'failed' ? 'Re-run Review' : 'Run Review'}
         </button>
       )}
     </div>

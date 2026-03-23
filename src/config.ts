@@ -8,6 +8,7 @@ const ConfigSchema = z.object({
   reposDir: z.string().default('./repos'),
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
   origin: z.string().default('http://localhost:5173'),
+  apiKey: z.string().min(16).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -21,5 +22,6 @@ export function loadConfig(): Config {
     reposDir: process.env.PIPE_REPOS_DIR,
     nodeEnv: process.env.NODE_ENV,
     origin: process.env.PIPE_ORIGIN,
+    apiKey: process.env.PIPE_API_KEY || undefined,
   });
 }

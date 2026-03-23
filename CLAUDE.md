@@ -36,7 +36,7 @@ frontend/           # React + Vite + TanStack app
 
 ```bash
 docker compose up -d          # Start PostgreSQL
-cp env.default .env           # Create local env (or use 1Password)
+touch .env                    # Create empty .env for local overrides
 npm install
 npm run dev                   # Start dev server on port 3100
 ```

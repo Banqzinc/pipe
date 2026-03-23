@@ -13,6 +13,7 @@
     "dev:ui": "cd frontend && npm run dev",
     "build": "npm run build:api && npm run build:ui",
     "build:api": "npx swc src -d dist --strip-leading-paths",
+    "build:cli": "npx swc src/cli -d dist --strip-leading-paths",
     "build:ui": "cd frontend && npm run build",
     "start": "node dist/index.js",
     "test": "vitest run",
@@ -30,6 +31,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "bin": {
+    "pipe": "./dist/cli/index.js"
+  },
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

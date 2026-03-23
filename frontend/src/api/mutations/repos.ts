@@ -1,19 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../client.ts';
 
-export function useCreateRepo() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      github_owner: string;
-      github_name: string;
-      pat: string;
-      webhook_secret: string;
-    }) => api.post('/repos', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['repos'] }),
-  });
-}
-
 export function useUpdateRepo() {
   const queryClient = useQueryClient();
   return useMutation({

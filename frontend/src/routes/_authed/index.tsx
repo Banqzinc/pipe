@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
@@ -74,20 +74,18 @@ function InboxPage() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"
               />
             </svg>
           </div>
           <p className="text-gray-400 text-lg">No repositories configured</p>
           <p className="text-gray-500 mt-1">
-            Add a repo in Settings to get started.
+            Run{' '}
+            <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">
+              pipe repo add
+            </code>{' '}
+            to connect a repository.
           </p>
-          <Link
-            to="/settings"
-            className="mt-4 px-4 py-2 text-sm font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-          >
-            Go to Settings
-          </Link>
         </div>
       </div>
     );

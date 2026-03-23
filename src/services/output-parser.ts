@@ -76,6 +76,35 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     };
   }
 
+  // Step 1b: Unwrap Claude CLI --output-format json envelope
+  // The CLI wraps responses as {"type":"result","result":"<content string>"}
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    'type' in (parsed as any) &&
+    (parsed as any).type === 'result' &&
+    'result' in (parsed as any) &&
+    typeof (parsed as any).result === 'string'
+  ) {
+    let inner = (parsed as any).result as string;
+    // Strip markdown code fences if present
+    const fenceMatch = inner.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+    if (fenceMatch) {
+      inner = fenceMatch[1].trim();
+    }
+    try {
+      parsed = JSON.parse(inner);
+    } catch {
+      return {
+        brief: null,
+        findings: [],
+        rawOutput: rawJson,
+        parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
+        isPartial: false,
+      };
+    }
+  }
+
   // Step 2: Validate with full schema
   const fullResult = ToolkitOutputSchema.safeParse(parsed);
 
