@@ -67,6 +67,9 @@ export class PullRequest {
   @Column({ type: 'int', nullable: true })
   stack_size!: number | null;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  review_completed_at!: Date | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

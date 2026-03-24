@@ -3,6 +3,7 @@ import type { PullRequestListItem } from '../../api/queries/prs.ts';
 import { StatusBadge } from '../common/status-badge.tsx';
 import { SplitButton } from '../common/split-button.tsx';
 import { StackGroup } from './stack-group.tsx';
+import { formatRelativeTime, formatShortDate } from '../../lib/format-date.ts';
 
 // --- PR Row ---
 
@@ -10,11 +11,12 @@ interface PrRowProps {
   pr: PullRequestListItem;
   onRunReview: (prId: string) => void;
   onCustomizeRun: (prId: string) => void;
+  onToggleCompleted: (prId: string, completed: boolean) => void;
   isRunning: boolean;
   indented?: boolean;
 }
 
-export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: PrRowProps) {
+export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRunning, indented }: PrRowProps) {
   const router = useRouter();
 
   const isHighRisk =
@@ -47,6 +49,9 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: 
       {/* PR number + title */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            {repoShort}
+          </span>
           <span className="text-gray-500 text-sm font-mono">
             #{pr.github_pr_number}
           </span>
@@ -64,14 +69,14 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: 
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-gray-500 text-xs">{pr.author}</span>
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-800 text-gray-400">
-            {repoShort}
-          </span>
           {pr.stack_id && pr.stack_position != null && pr.stack_size != null && (
             <span className="text-gray-600 text-xs">
               {pr.stack_position}/{pr.stack_size}
             </span>
           )}
+          <span className="text-gray-600 text-xs">{formatShortDate(pr.created_at)}</span>
+          <span className="text-gray-700 text-xs">·</span>
+          <span className="text-gray-600 text-xs">updated {formatRelativeTime(pr.updated_at)}</span>
         </div>
       </div>
 
@@ -87,10 +92,48 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, isRunning, indented }: 
         </span>
       )}
 
-      {/* Run Review button */}
-      {(!pr.latest_run || pr.latest_run.status === 'failed') && !pr.is_draft && (
+      {/* Mark as Completed / Undo */}
+      {pr.latest_run && !pr.review_completed_at && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCompleted(pr.id, true);
+          }}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-gray-400 bg-gray-800 hover:text-green-400 hover:bg-green-500/10 border border-gray-700 hover:border-green-500/30 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Done
+        </button>
+      )}
+      {pr.review_completed_at && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCompleted(pr.id, false);
+          }}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-green-400 bg-green-500/10 hover:text-gray-400 hover:bg-gray-800 border border-green-500/20 hover:border-gray-700 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+          </svg>
+          Undo
+        </button>
+      )}
+
+      {/* Run / Re-run Review button */}
+      {!pr.is_draft && (
         <SplitButton
-          label={isRunning ? 'Running...' : pr.latest_run?.status === 'failed' ? 'Re-run Review' : 'Run Review'}
+          label={
+            isRunning
+              ? 'Running...'
+              : pr.latest_run
+                ? 'Re-run Review'
+                : 'Run Review'
+          }
           onClick={() => onRunReview(pr.id)}
           disabled={isRunning}
           menuItems={[
@@ -108,10 +151,11 @@ interface PrTableProps {
   prs: PullRequestListItem[];
   onRunReview: (prId: string) => void;
   onCustomizeRun: (prId: string) => void;
+  onToggleCompleted: (prId: string, completed: boolean) => void;
   isRunning: boolean;
 }
 
-export function PrTable({ prs, onRunReview, onCustomizeRun, isRunning }: PrTableProps) {
+export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, isRunning }: PrTableProps) {
   // Group by stack_id
   const stacks = new Map<string, PullRequestListItem[]>();
   const standalone: PullRequestListItem[] = [];
@@ -144,6 +188,7 @@ export function PrTable({ prs, onRunReview, onCustomizeRun, isRunning }: PrTable
           prs={stackPrs}
           onRunReview={onRunReview}
           onCustomizeRun={onCustomizeRun}
+          onToggleCompleted={onToggleCompleted}
           isRunning={isRunning}
         />
       ))}
@@ -156,6 +201,7 @@ export function PrTable({ prs, onRunReview, onCustomizeRun, isRunning }: PrTable
               pr={pr}
               onRunReview={onRunReview}
               onCustomizeRun={onCustomizeRun}
+              onToggleCompleted={onToggleCompleted}
               isRunning={isRunning}
             />
           ))}

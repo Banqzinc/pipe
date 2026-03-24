@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useUpdatePr } from '../../api/mutations/prs.ts';
 import { useSyncAll } from '../../api/mutations/repos.ts';
 import { PrTable } from '../../components/inbox/pr-table.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
@@ -28,6 +29,7 @@ function InboxPage() {
   const { data, isLoading, error } = usePullRequests(filters);
   const { data: repos } = useRepos();
   const createRun = useCreateRun();
+  const updatePr = useUpdatePr();
   const syncAll = useSyncAll();
   const [customizePrId, setCustomizePrId] = useState<string | null>(null);
 
@@ -59,6 +61,10 @@ function InboxPage() {
 
   const handleRunReview = (prId: string) => {
     createRun.mutate({ prId });
+  };
+
+  const handleToggleCompleted = (prId: string, completed: boolean) => {
+    updatePr.mutate({ prId, review_completed_at: completed || null });
   };
 
   const handleCustomizeRun = (prId: string) => {
@@ -188,6 +194,7 @@ function InboxPage() {
           prs={prs}
           onRunReview={handleRunReview}
           onCustomizeRun={handleCustomizeRun}
+          onToggleCompleted={handleToggleCompleted}
           isRunning={createRun.isPending}
         />
       )}

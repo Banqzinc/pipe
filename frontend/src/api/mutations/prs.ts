@@ -8,12 +8,15 @@ export function useUpdatePr() {
       prId: string;
       linear_ticket_id?: string | null;
       notion_url?: string | null;
+      review_completed_at?: boolean | null;
     }) => {
       const { prId, ...body } = params;
-      return api.patch<{ id: string; linear_ticket_id: string | null; notion_url: string | null }>(
-        `/prs/${prId}`,
-        body,
-      );
+      return api.patch<{
+        id: string;
+        linear_ticket_id: string | null;
+        notion_url: string | null;
+        review_completed_at: string | null;
+      }>(`/prs/${prId}`, body);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prs'] });

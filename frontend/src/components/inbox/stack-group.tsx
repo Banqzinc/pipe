@@ -7,6 +7,7 @@ interface StackGroupProps {
   prs: PullRequestListItem[];
   onRunReview: (prId: string) => void;
   onCustomizeRun: (prId: string) => void;
+  onToggleCompleted: (prId: string, completed: boolean) => void;
   isRunning: boolean;
 }
 
@@ -15,6 +16,7 @@ export function StackGroup({
   prs,
   onRunReview,
   onCustomizeRun,
+  onToggleCompleted,
   isRunning,
 }: StackGroupProps) {
   const [expanded, setExpanded] = useState(true);
@@ -23,6 +25,7 @@ export function StackGroup({
     (a, b) => (a.stack_position ?? 0) - (b.stack_position ?? 0),
   );
   const rootBranch = sorted[0]?.branch_name ?? stackId;
+  const repoName = sorted[0]?.repo.github_name;
 
   return (
     <div className="border border-gray-800 rounded-lg overflow-hidden">
@@ -44,6 +47,11 @@ export function StackGroup({
             d="M9 5l7 7-7 7"
           />
         </svg>
+        {repoName && (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            {repoName}
+          </span>
+        )}
         <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-400">
           STACK &middot; {prs.length} PRs
         </span>
@@ -58,6 +66,7 @@ export function StackGroup({
               pr={pr}
               onRunReview={onRunReview}
               onCustomizeRun={onCustomizeRun}
+              onToggleCompleted={onToggleCompleted}
               isRunning={isRunning}
               indented
             />

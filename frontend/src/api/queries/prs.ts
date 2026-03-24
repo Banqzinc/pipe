@@ -17,6 +17,7 @@ export interface PullRequestDetail {
   stack_id: string | null;
   stack_position: number | null;
   stack_size: number | null;
+  review_completed_at: string | null;
   runs: Array<{
     id: string;
     status: string;
@@ -45,6 +46,7 @@ export interface PullRequestListItem {
   stack_id: string | null;
   stack_position: number | null;
   stack_size: number | null;
+  review_completed_at: string | null;
   latest_run: {
     id: string;
     status: string;

@@ -98,6 +98,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           stack_id: pr.stack_id,
           stack_position: pr.stack_position,
           stack_size: pr.stack_size,
+          review_completed_at: pr.review_completed_at,
           latest_run: latestRunData,
           created_at: pr.created_at,
           updated_at: pr.updated_at,
@@ -116,20 +117,16 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
             !['completed', 'partial'].includes(pr.latest_run.status)),
       );
     } else if (filter === 'in_progress') {
-      // Latest run has pending findings
+      // Latest run exists with findings, not yet marked completed
       filtered = result.filter(
         (pr) =>
+          !pr.review_completed_at &&
           pr.latest_run &&
-          pr.latest_run.findings_count.pending > 0,
+          pr.latest_run.findings_count.total > 0,
       );
     } else if (filter === 'completed') {
-      // Latest run's findings all triaged (none pending)
-      filtered = result.filter(
-        (pr) =>
-          pr.latest_run &&
-          pr.latest_run.findings_count.total > 0 &&
-          pr.latest_run.findings_count.pending === 0,
-      );
+      // Explicitly marked as completed by user
+      filtered = result.filter((pr) => !!pr.review_completed_at);
     }
 
     res.json({ pull_requests: filtered });
@@ -198,6 +195,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       stack_id: pr.stack_id,
       stack_position: pr.stack_position,
       stack_size: pr.stack_size,
+      review_completed_at: pr.review_completed_at,
       created_at: pr.created_at,
       updated_at: pr.updated_at,
       runs: runsData,
@@ -317,13 +315,17 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       throw new AppError('Pull request not found', 404, 'NOT_FOUND');
     }
 
-    const { linear_ticket_id, notion_url } = req.body as {
+    const { linear_ticket_id, notion_url, review_completed_at } = req.body as {
       linear_ticket_id?: string | null;
       notion_url?: string | null;
+      review_completed_at?: boolean | null;
     };
 
     if (linear_ticket_id !== undefined) pr.linear_ticket_id = linear_ticket_id || null;
     if (notion_url !== undefined) pr.notion_url = notion_url || null;
+    if (review_completed_at !== undefined) {
+      pr.review_completed_at = review_completed_at ? new Date() : null;
+    }
 
     await prRepo.save(pr);
 
@@ -331,6 +333,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       id: pr.id,
       linear_ticket_id: pr.linear_ticket_id,
       notion_url: pr.notion_url,
+      review_completed_at: pr.review_completed_at,
     });
   } catch (err) {
     next(err);
