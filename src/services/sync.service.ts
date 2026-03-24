@@ -66,7 +66,7 @@ export class SyncService {
       base_branch: ghPr.base.ref,
       branch_name: ghPr.head.ref,
     }));
-    const stacks = SyncService.detectStacks(stackInput);
+    const stacks = SyncService.detectStacks(repoId, stackInput);
 
     for (const [prNumber, stackInfo] of stacks) {
       await prRepo.update(
@@ -152,6 +152,7 @@ export class SyncService {
    * stack_size = total PRs in the chain.
    */
   static detectStacks(
+    repoId: string,
     prs: Array<{
       github_pr_number: number;
       base_branch: string;
@@ -264,7 +265,7 @@ export class SyncService {
 
       const stackId = crypto
         .createHash('sha256')
-        .update(rootBranch)
+        .update(repoId + ':' + rootBranch)
         .digest('hex')
         .slice(0, 16);
 

@@ -43,7 +43,7 @@ describe('SyncService', () => {
         { github_pr_number: 2, base_branch: 'feature/base', branch_name: 'feature/middle' },
         { github_pr_number: 3, base_branch: 'feature/middle', branch_name: 'feature/top' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       expect(stacks.get(1)?.stack_position).toBe(1);
       expect(stacks.get(2)?.stack_position).toBe(2);
       expect(stacks.get(3)?.stack_position).toBe(3);
@@ -57,7 +57,7 @@ describe('SyncService', () => {
       const prs = [
         { github_pr_number: 1, base_branch: 'main', branch_name: 'feature/solo' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       expect(stacks.size).toBe(0);
     });
 
@@ -68,7 +68,7 @@ describe('SyncService', () => {
         { github_pr_number: 3, base_branch: 'main', branch_name: 'stack-b/base' },
         { github_pr_number: 4, base_branch: 'stack-b/base', branch_name: 'stack-b/top' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       expect(stacks.get(1)?.stack_id).not.toBe(stacks.get(3)?.stack_id);
       expect(stacks.get(1)?.stack_id).toBe(stacks.get(2)?.stack_id);
       expect(stacks.get(3)?.stack_id).toBe(stacks.get(4)?.stack_id);
@@ -79,7 +79,7 @@ describe('SyncService', () => {
         { github_pr_number: 1, base_branch: 'develop', branch_name: 'feature/base' },
         { github_pr_number: 2, base_branch: 'feature/base', branch_name: 'feature/top' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       expect(stacks.get(1)?.stack_position).toBe(1);
       expect(stacks.get(2)?.stack_position).toBe(2);
       expect(stacks.get(1)?.stack_size).toBe(2);
@@ -90,12 +90,12 @@ describe('SyncService', () => {
         { github_pr_number: 1, base_branch: 'main', branch_name: 'feature/a' },
         { github_pr_number: 2, base_branch: 'main', branch_name: 'feature/b' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       expect(stacks.size).toBe(0);
     });
 
     it('handles empty PR list', () => {
-      const stacks = SyncService.detectStacks([]);
+      const stacks = SyncService.detectStacks('repo-1', []);
       expect(stacks.size).toBe(0);
     });
 
@@ -107,7 +107,7 @@ describe('SyncService', () => {
         { github_pr_number: 2, base_branch: 'feature/base', branch_name: 'feature/mid' },
         { github_pr_number: 3, base_branch: 'feature/orphan', branch_name: 'feature/child' },
       ];
-      const stacks = SyncService.detectStacks(prs);
+      const stacks = SyncService.detectStacks('repo-1', prs);
       // PR 1 and 2 form a stack
       expect(stacks.get(1)?.stack_size).toBe(2);
       expect(stacks.get(2)?.stack_size).toBe(2);
