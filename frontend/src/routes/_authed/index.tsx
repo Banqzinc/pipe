@@ -133,7 +133,7 @@ function InboxPage() {
             <select
               value={selectedRepo}
               onChange={(e) => setSelectedRepo(e.target.value)}
-              className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+              className="bg-[#252528] border border-white/[0.08] rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
             >
               <option value="">All repos</option>
               {repos.map((repo) => (
@@ -147,7 +147,7 @@ function InboxPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-800">
+      <div className="flex gap-1 mb-6 border-b border-white/[0.08]">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -164,7 +164,7 @@ function InboxPage() {
               className={`ml-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
                 activeTab === tab.key
                   ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-gray-800 text-gray-500'
+                  : 'bg-white/[0.06] text-gray-500'
               }`}
             >
               {counts[tab.key]}

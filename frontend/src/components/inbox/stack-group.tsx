@@ -22,17 +22,17 @@ export function StackGroup({
   const [expanded, setExpanded] = useState(true);
 
   const sorted = [...prs].sort(
-    (a, b) => (a.stack_position ?? 0) - (b.stack_position ?? 0),
+    (a, b) => (b.stack_position ?? 0) - (a.stack_position ?? 0),
   );
-  const rootBranch = sorted[0]?.branch_name ?? stackId;
+  const rootBranch = sorted[sorted.length - 1]?.branch_name ?? stackId;
   const repoName = sorted[0]?.repo.github_name;
 
   return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
+    <div className="border border-white/[0.08] rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-900/60 hover:bg-gray-900 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-2.5 bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
       >
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -59,7 +59,7 @@ export function StackGroup({
       </button>
 
       {expanded && (
-        <div className="divide-y divide-gray-800/60">
+        <div className="divide-y divide-white/[0.06]">
           {sorted.map((pr) => (
             <PrRow
               key={pr.id}

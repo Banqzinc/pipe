@@ -3,6 +3,7 @@ import path from 'node:path';
 import { AppDataSource } from '../db/data-source';
 import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
+import { ReviewPost } from '../entities/ReviewPost.entity';
 import { Finding } from '../entities/Finding.entity';
 import { PromptTemplate } from '../entities/PromptTemplate.entity';
 import { RunStatus, FindingSeverity, FindingStatus } from '../entities/enums';
@@ -12,6 +13,10 @@ import { parseToolkitOutput, type ParsedFinding } from './output-parser';
 import { logger } from '../lib/logger';
 import { runEventBus } from '../lib/run-event-bus';
 import { loadConfig } from '../config';
+import {
+  fetchPRComments,
+  type PRCommentContext,
+} from './comment-fetcher.service';
 
 const CLI_TIMEOUT_MS = 900_000; // 15 minutes
 const MAX_RETRIES = 3;
@@ -137,7 +142,32 @@ export class ReviewRunner {
       prompt = run.prompt;
       logger.info({ runId }, 'Using user-supplied custom prompt');
     } else {
-      prompt = await buildPrompt(pr, contextPack);
+      // Check for prior review posts on this PR to include follow-up context
+      let priorComments: PRCommentContext | undefined;
+      const postRepo = AppDataSource.getRepository(ReviewPost);
+      const priorPost = await postRepo.findOneBy({ run_id: run.id });
+      // If no post on this run, check if any prior run on this PR has a post
+      const hasPriorPost =
+        priorPost ??
+        (await postRepo
+          .createQueryBuilder('post')
+          .innerJoin('post.reviewRun', 'run')
+          .where('run.pr_id = :prId', { prId: pr.id })
+          .getOne());
+
+      if (hasPriorPost) {
+        try {
+          priorComments = await fetchPRComments(pr);
+          logger.info(
+            { runId, threadCount: priorComments.threads.length },
+            'Fetched prior review comments for follow-up',
+          );
+        } catch (err) {
+          logger.warn({ runId, err }, 'Failed to fetch prior review comments, continuing without');
+        }
+      }
+
+      prompt = await buildPrompt(pr, contextPack, priorComments);
       await runRepo.update(runId, { prompt });
     }
 
@@ -275,9 +305,17 @@ export class ReviewRunner {
         }
       }, 5_000);
 
-      // Manual timeout
-      const timeout = setTimeout(() => {
+      // Manual timeout — flush accumulated output before rejecting
+      const timeout = setTimeout(async () => {
         child.kill('SIGTERM');
+        try {
+          await runRepo.update(runId, {
+            cli_output: displayText || undefined,
+            toolkit_raw_output: rawOutput || undefined,
+          });
+        } catch (e) {
+          logger.warn({ runId, err: e }, 'Failed to flush output on timeout');
+        }
         const err = new Error(`CLI timed out after ${CLI_TIMEOUT_MS}ms`);
         (err as any).isTimeout = true;
         reject(err);
@@ -402,7 +440,11 @@ export class ReviewRunner {
 
 // --- Prompt Builder ---
 
-export async function buildPrompt(pr: PullRequest, ctx: ContextPack): Promise<string> {
+export async function buildPrompt(
+  pr: PullRequest,
+  ctx: ContextPack,
+  priorComments?: PRCommentContext,
+): Promise<string> {
   const templateRepo = AppDataSource.getRepository(PromptTemplate);
   const template = await templateRepo.findOneBy({ name: 'default' });
 
@@ -434,6 +476,41 @@ export async function buildPrompt(pr: PullRequest, ctx: ContextPack): Promise<st
     }
     if (ctx.notionUrl) {
       parts.push(`Notion proposal: ${ctx.notionUrl}`);
+    }
+  }
+
+  // Prior review comments — only include when there are threaded comments
+  if (priorComments && priorComments.threads.length > 0) {
+    parts.push('\n## Prior Review Comments');
+    parts.push(
+      'This PR has been reviewed before. Below are the comments that were posted and any replies from the author.',
+    );
+    parts.push(
+      'Check whether each issue has been addressed in the current diff. If resolved, do not re-raise it.',
+    );
+    parts.push(
+      'If still present or only partially fixed, include it in your findings with a note about what remains.',
+    );
+
+    for (let i = 0; i < priorComments.threads.length; i++) {
+      const thread = priorComments.threads[i];
+      const root = thread.rootComment;
+      const location = root.line ? `${root.path}:${root.line}` : root.path;
+      const excerpt =
+        root.body.length > 120 ? `${root.body.slice(0, 120)}...` : root.body;
+
+      parts.push(`\n### Thread ${i + 1}: [${location}]`);
+      parts.push(`**Reviewer (@${root.user.login}):** ${excerpt}`);
+
+      if (thread.replies.length > 0) {
+        for (const reply of thread.replies) {
+          const replyExcerpt =
+            reply.body.length > 120 ? `${reply.body.slice(0, 120)}...` : reply.body;
+          parts.push(`**@${reply.user.login}:** ${replyExcerpt}`);
+        }
+      } else {
+        parts.push('*No replies*');
+      }
     }
   }
 

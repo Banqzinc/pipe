@@ -5,13 +5,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentPath = routerState.location.pathname;
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <nav className="border-b border-gray-800 bg-gray-900/50">
+    <div className="min-h-screen bg-[#1E1E20]">
+      <nav className="border-b border-white/[0.08] bg-[#252528]/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-6">
-              <Link to="/" className="text-lg font-bold text-white">
-                Pipe
+              <Link to="/" className="flex items-center gap-2">
+                <img src="/pipe-logo.png" alt="Pipe" className="h-7 w-7" />
+                <span className="text-lg font-bold text-white">Pipe</span>
               </Link>
               <Link
                 to="/"

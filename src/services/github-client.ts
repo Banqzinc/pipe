@@ -43,6 +43,25 @@ export interface GitHubReview {
   html_url: string;
 }
 
+export interface GitHubReviewComment {
+  id: number;
+  body: string;
+  path: string;
+  line: number | null;
+  user: { login: string };
+  created_at: string;
+  in_reply_to_id?: number;
+  html_url: string;
+}
+
+export interface GitHubIssueComment {
+  id: number;
+  body: string;
+  user: { login: string };
+  created_at: string;
+  html_url: string;
+}
+
 // --- Client ---
 
 const BASE_URL = 'https://api.github.com';
@@ -123,6 +142,26 @@ export class GitHubClient {
   async getPRFiles(owner: string, repo: string, number: number): Promise<GitHubFile[]> {
     return this.request<GitHubFile[]>(
       `/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
+    );
+  }
+
+  async getPRReviewComments(
+    owner: string,
+    repo: string,
+    number: number,
+  ): Promise<GitHubReviewComment[]> {
+    return this.request<GitHubReviewComment[]>(
+      `/repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`,
+    );
+  }
+
+  async getPRIssueComments(
+    owner: string,
+    repo: string,
+    number: number,
+  ): Promise<GitHubIssueComment[]> {
+    return this.request<GitHubIssueComment[]>(
+      `/repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
     );
   }
 

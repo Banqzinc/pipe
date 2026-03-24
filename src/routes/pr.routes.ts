@@ -8,6 +8,7 @@ import { ReviewPost } from '../entities/ReviewPost.entity';
 import { FindingStatus } from '../entities/enums';
 import { AppError } from '../lib/errors';
 import { buildPrompt } from '../services/review-runner.service';
+import { fetchPRComments } from '../services/comment-fetcher.service';
 
 const router = Router();
 
@@ -258,6 +259,56 @@ router.get(
   },
 );
 
+// GET /api/prs/:id/comments — Fetch GitHub review comment threads
+router.get(
+  '/:id/comments',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const prRepo = AppDataSource.getRepository(PullRequest);
+      const id = req.params.id as string;
+
+      const pr = await prRepo.findOne({
+        where: { id },
+        relations: ['repo'],
+      });
+
+      if (!pr) {
+        throw new AppError('Pull request not found', 404, 'NOT_FOUND');
+      }
+
+      const context = await fetchPRComments(pr);
+
+      res.json({
+        threads: context.threads.map((t) => ({
+          root_comment_id: t.rootComment.id,
+          path: t.rootComment.path,
+          line: t.rootComment.line,
+          root_body: t.rootComment.body,
+          root_user: t.rootComment.user.login,
+          root_created_at: t.rootComment.created_at,
+          root_html_url: t.rootComment.html_url,
+          replies: t.replies.map((r) => ({
+            id: r.id,
+            body: r.body,
+            user: r.user.login,
+            created_at: r.created_at,
+            html_url: r.html_url,
+          })),
+        })),
+        issue_comments: context.issueComments.map((c) => ({
+          id: c.id,
+          body: c.body,
+          user: c.user.login,
+          created_at: c.created_at,
+          html_url: c.html_url,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // POST /api/prs/:id/preview-prompt — Build prompt without creating a run
 router.post(
   '/:id/preview-prompt',
@@ -287,13 +338,31 @@ router.post(
         notionUrl: pr.notion_url,
       };
 
-      const prompt = await buildPrompt(pr, ctx);
+      // Check for prior review posts to include follow-up context
+      let priorComments: Awaited<ReturnType<typeof fetchPRComments>> | undefined;
+      const postRepo = AppDataSource.getRepository(ReviewPost);
+      const hasPriorPost = await postRepo
+        .createQueryBuilder('post')
+        .innerJoin('post.reviewRun', 'run')
+        .where('run.pr_id = :prId', { prId: pr.id })
+        .getOne();
+
+      if (hasPriorPost) {
+        try {
+          priorComments = await fetchPRComments(pr);
+        } catch {
+          // Continue without prior comments
+        }
+      }
+
+      const prompt = await buildPrompt(pr, ctx, priorComments);
 
       res.json({
         prompt,
         context_summary: {
           has_linear_ticket: !!pr.linear_ticket_id,
           has_notion_url: !!pr.notion_url,
+          has_prior_comments: !!priorComments && priorComments.threads.length > 0,
           stack_position: pr.stack_position,
           stack_size: pr.stack_size,
         },

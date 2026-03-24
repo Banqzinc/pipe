@@ -8,6 +8,7 @@ import { api } from '../../api/client.ts';
 import { useQuery } from '@tanstack/react-query';
 import { SplitButton } from '../../components/common/split-button.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
+import { formatDateTime } from '../../lib/format-date.ts';
 
 function PrDetailPage() {
   const { id } = Route.useParams();
@@ -365,16 +366,6 @@ function PrStatusBadge({ status }: { status: string }) {
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 export const Route = createFileRoute('/_authed/pr/$id')({

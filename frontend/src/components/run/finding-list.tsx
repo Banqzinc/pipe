@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { FindingItem } from '../../api/queries/findings.ts';
+import type { CommentThread } from '../../api/queries/comments.ts';
 import { FindingCard } from './finding-card.tsx';
 
 interface FindingListProps {
@@ -13,6 +14,20 @@ interface FindingListProps {
   onEditBodyChange: (value: string) => void;
   onEditSave: () => void;
   onEditCancel: () => void;
+  commentThreads?: CommentThread[];
+}
+
+function matchReplies(
+  finding: FindingItem,
+  threads?: CommentThread[],
+): CommentThread['replies'] | undefined {
+  if (!threads || threads.length === 0) return undefined;
+  // Match by file path + line number
+  const match = threads.find(
+    (t) => t.path === finding.file_path && t.line === finding.start_line,
+  );
+  if (match && match.replies.length > 0) return match.replies;
+  return undefined;
 }
 
 function groupByFile(findings: FindingItem[]): Map<string, FindingItem[]> {
@@ -36,6 +51,7 @@ export function FindingList({
   onEditBodyChange,
   onEditSave,
   onEditCancel,
+  commentThreads,
 }: FindingListProps) {
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -101,6 +117,7 @@ export function FindingList({
                     onEditBodyChange={onEditBodyChange}
                     onEditSave={onEditSave}
                     onEditCancel={onEditCancel}
+                    replies={matchReplies(finding, commentThreads)}
                   />
                 </div>
               );

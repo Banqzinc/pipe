@@ -74,6 +74,9 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRu
               {pr.stack_position}/{pr.stack_size}
             </span>
           )}
+          <span className="text-gray-700 text-xs">·</span>
+          <span className="text-gray-600 text-xs font-mono truncate max-w-48">{pr.branch_name}</span>
+          <span className="text-gray-700 text-xs">·</span>
           <span className="text-gray-600 text-xs">{formatShortDate(pr.created_at)}</span>
           <span className="text-gray-700 text-xs">·</span>
           <span className="text-gray-600 text-xs">updated {formatRelativeTime(pr.updated_at)}</span>
@@ -194,7 +197,7 @@ export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, i
       ))}
 
       {standalone.length > 0 && (
-        <div className="border border-gray-800 rounded-lg overflow-hidden divide-y divide-gray-800/60">
+        <div className="border border-white/[0.08] rounded-lg overflow-hidden divide-y divide-white/[0.06]">
           {standalone.map((pr) => (
             <PrRow
               key={pr.id}

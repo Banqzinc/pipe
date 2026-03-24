@@ -14,6 +14,7 @@ import {
 } from '../../api/mutations/findings.ts';
 import { useCreateRun } from '../../api/mutations/runs.ts';
 import { useRunStream } from '../../hooks/use-run-stream.ts';
+import { usePRComments } from '../../api/queries/comments.ts';
 import { ReviewBrief } from '../../components/run/review-brief.tsx';
 import { FindingList } from '../../components/run/finding-list.tsx';
 import { StaleBanner } from '../../components/run/stale-banner.tsx';
@@ -26,6 +27,10 @@ function RunPage() {
   // Data fetching
   const { data: run, isLoading: runLoading, error: runError } = useRun(id);
   const { data: findingsData } = useFindings(id);
+  const { data: commentsData } = usePRComments(
+    run?.pr.id ?? '',
+    !!(run?.has_post),
+  );
 
   // Mutations
   const updateFinding = useUpdateFinding(id);
@@ -542,6 +547,7 @@ function RunPage() {
               onEditBodyChange={setEditBody}
               onEditSave={handleEditSave}
               onEditCancel={handleEditCancel}
+              commentThreads={commentsData?.threads}
             />
           </>
         )}

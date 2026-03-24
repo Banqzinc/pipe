@@ -2,9 +2,23 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { FindingItem } from '../../api/queries/findings.ts';
+import type { CommentReply } from '../../api/queries/comments.ts';
 import { SeverityBadge } from '../common/severity-badge.tsx';
 import { CodeBlock } from '../common/code-block.tsx';
 import { FindingEditor } from './finding-editor.tsx';
+
+function formatRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
 
 const borderColors: Record<string, string> = {
   critical: 'border-l-red-500',
@@ -43,6 +57,7 @@ interface FindingCardProps {
   onEditBodyChange: (value: string) => void;
   onEditSave: () => void;
   onEditCancel: () => void;
+  replies?: CommentReply[];
 }
 
 export function FindingCard({
@@ -56,6 +71,7 @@ export function FindingCard({
   onEditBodyChange,
   onEditSave,
   onEditCancel,
+  replies,
 }: FindingCardProps) {
   const [showFix, setShowFix] = useState(false);
 
@@ -175,6 +191,33 @@ export function FindingCard({
           >
             Edit
           </button>
+        </div>
+      )}
+
+      {/* GitHub replies */}
+      {replies && replies.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+          {replies.map((reply) => (
+            <div key={reply.id} className="ml-3 pl-3 border-l-2 border-gray-700">
+              <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <span className="font-medium text-gray-400">@{reply.user}</span>
+                <span>&middot;</span>
+                <a
+                  href={reply.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-300 transition-colors"
+                >
+                  {formatRelativeTime(reply.created_at)}
+                </a>
+              </div>
+              <div className="prose prose-sm prose-invert max-w-none text-gray-400 text-xs">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {reply.body}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
