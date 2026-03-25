@@ -51,6 +51,9 @@ export class ReviewRun {
   @Column({ type: 'text', nullable: true })
   prompt!: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  stack_id!: string | null;
+
   @Column({ type: 'text', nullable: true })
   cli_output!: string | null;
 

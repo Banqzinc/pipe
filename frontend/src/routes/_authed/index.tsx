@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
-import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useCreateRun, useCreateStackRun } from '../../api/mutations/runs.ts';
 import { useUpdatePr } from '../../api/mutations/prs.ts';
 import { useSyncAll } from '../../api/mutations/repos.ts';
 import { PrTable } from '../../components/inbox/pr-table.tsx';
@@ -28,10 +28,13 @@ function InboxPage() {
 
   const { data, isLoading, error } = usePullRequests(filters);
   const { data: repos } = useRepos();
+  const router = useRouter();
   const createRun = useCreateRun();
+  const createStackRun = useCreateStackRun();
   const updatePr = useUpdatePr();
   const syncAll = useSyncAll();
   const [customizePrId, setCustomizePrId] = useState<string | null>(null);
+  const [customizeStackId, setCustomizeStackId] = useState<string | null>(null);
 
   // Fetch all PRs (unfiltered) for tab counts
   const { data: allData } = usePullRequests({
@@ -79,11 +82,42 @@ function InboxPage() {
     );
   };
 
+  const handleRunStackReview = (stackId: string) => {
+    createStackRun.mutate(
+      { stackId },
+      {
+        onSuccess: (data) => {
+          void router.navigate({ to: `/run/${data.id}` as '/' });
+        },
+      },
+    );
+  };
+
+  const handleCustomizeStackRun = (stackId: string) => {
+    setCustomizeStackId(stackId);
+  };
+
+  const handleCustomizeStackRunSubmit = (prompt: string) => {
+    if (!customizeStackId) return;
+    createStackRun.mutate(
+      { stackId: customizeStackId, prompt },
+      {
+        onSuccess: (data) => {
+          setCustomizeStackId(null);
+          void router.navigate({ to: `/run/${data.id}` as '/' });
+        },
+      },
+    );
+  };
+
   // Empty state: no repos configured
   if (repos && repos.length === 0) {
     return (
       <div className="p-6">
-        <h1 className="text-xl font-semibold">Inbox</h1>
+        <div className="flex items-center gap-3">
+          <img src="/pipe-logo.png" alt="" className="h-10 w-10" />
+          <h1 className="text-xl font-semibold">Inbox</h1>
+        </div>
         <div className="mt-12 flex flex-col items-center text-center">
           <div className="text-gray-500 text-4xl mb-4">
             <svg
@@ -116,7 +150,10 @@ function InboxPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">Inbox</h1>
+        <div className="flex items-center gap-3">
+          <img src="/pipe-logo.png" alt="" className="h-10 w-10" />
+          <h1 className="text-xl font-semibold">Inbox</h1>
+        </div>
 
         <div className="flex items-center gap-3">
           <button
@@ -196,6 +233,9 @@ function InboxPage() {
           onCustomizeRun={handleCustomizeRun}
           onToggleCompleted={handleToggleCompleted}
           isRunning={createRun.isPending}
+          onRunStackReview={handleRunStackReview}
+          onCustomizeStackRun={handleCustomizeStackRun}
+          isStackRunning={createStackRun.isPending}
         />
       )}
 
@@ -237,6 +277,18 @@ function InboxPage() {
           />
         );
       })()}
+
+      {/* Customize & Run Stack modal */}
+      {customizeStackId && (
+        <PromptPreviewModal
+          isOpen={!!customizeStackId}
+          onClose={() => setCustomizeStackId(null)}
+          prId=""
+          stackId={customizeStackId}
+          onRun={handleCustomizeStackRunSubmit}
+          isRunning={createStackRun.isPending}
+        />
+      )}
     </div>
   );
 }

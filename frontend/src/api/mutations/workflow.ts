@@ -8,6 +8,7 @@ export function useUpdatePromptTemplate() {
     mutationFn: (params: {
       system_instructions?: string;
       output_instructions?: string;
+      sections?: Array<{ key: string; enabled: boolean; content?: string }>;
     }) => api.put<PromptTemplateData>('/workflow/prompt-template', params),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow', 'prompt-template'] });

@@ -49,9 +49,11 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRu
       {/* PR number + title */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
-            {repoShort}
-          </span>
+          {!indented && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+              {repoShort}
+            </span>
+          )}
           <span className="text-gray-500 text-sm font-mono">
             #{pr.github_pr_number}
           </span>
@@ -85,6 +87,19 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRu
 
       {/* Status badge */}
       <StatusBadge run={pr.latest_run} />
+
+      {/* Comment count */}
+      {(() => {
+        const totalComments = (pr.comment_counts?.discussions ?? 0) + (pr.comment_counts?.review_comments ?? 0);
+        return totalComments > 0 ? (
+          <span className="flex items-center gap-1 text-xs text-gray-500">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-12.375 0c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9a9.004 9.004 0 01-4.688-1.312l-3.562.89.89-3.562A8.967 8.967 0 013.5 12z" />
+            </svg>
+            {totalComments}
+          </span>
+        ) : null;
+      })()}
 
       {/* Findings count */}
       {pr.latest_run && pr.latest_run.findings_count.total > 0 && (
@@ -156,9 +171,12 @@ interface PrTableProps {
   onCustomizeRun: (prId: string) => void;
   onToggleCompleted: (prId: string, completed: boolean) => void;
   isRunning: boolean;
+  onRunStackReview?: (stackId: string) => void;
+  onCustomizeStackRun?: (stackId: string) => void;
+  isStackRunning?: boolean;
 }
 
-export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, isRunning }: PrTableProps) {
+export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, isRunning, onRunStackReview, onCustomizeStackRun, isStackRunning }: PrTableProps) {
   // Group by stack_id
   const stacks = new Map<string, PullRequestListItem[]>();
   const standalone: PullRequestListItem[] = [];
@@ -193,6 +211,9 @@ export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, i
           onCustomizeRun={onCustomizeRun}
           onToggleCompleted={onToggleCompleted}
           isRunning={isRunning}
+          onRunStackReview={onRunStackReview}
+          onCustomizeStackRun={onCustomizeStackRun}
+          isStackRunning={isStackRunning}
         />
       ))}
 

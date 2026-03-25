@@ -14,3 +14,16 @@ export function useCreateRun() {
     },
   });
 }
+
+export function useCreateStackRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { stackId: string; prompt?: string }) =>
+      api.post<{ id: string; status: string }>(`/stacks/${params.stackId}/runs`, {
+        prompt: params.prompt,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prs'] });
+    },
+  });
+}

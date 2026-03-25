@@ -7,7 +7,11 @@ import { ReviewPost } from '../entities/ReviewPost.entity';
 import { Finding } from '../entities/Finding.entity';
 import { PromptTemplate } from '../entities/PromptTemplate.entity';
 import { RunStatus, FindingSeverity, FindingStatus } from '../entities/enums';
-import { ContextPackBuilder, type ContextPack } from './context-pack.service';
+import {
+  ContextPackBuilder,
+  type ContextPack,
+  type StackContextPack,
+} from './context-pack.service';
 import { analyzeRisk } from './risk-engine';
 import { parseToolkitOutput, type ParsedFinding } from './output-parser';
 import { logger } from '../lib/logger';
@@ -113,10 +117,29 @@ export class ReviewRunner {
     }
 
     const pr = run.pullRequest;
+    const isStackReview = !!run.stack_id;
 
     // 2. Build context pack
     const contextPackBuilder = new ContextPackBuilder();
-    const contextPack = await contextPackBuilder.build(run);
+    let contextPack: ContextPack | StackContextPack;
+    let stackPrs: PullRequest[] = [];
+
+    if (isStackReview) {
+      runEventBus.emit(runId, {
+        type: 'phase',
+        phase: 'context',
+        message: `Building context pack for stack (${run.stack_id})...`,
+      });
+      contextPack = await contextPackBuilder.buildForStack(run.stack_id!, pr.repo_id);
+
+      // Load stack PRs for finding attribution
+      stackPrs = await prRepo.find({
+        where: { stack_id: run.stack_id!, repo_id: pr.repo_id },
+        order: { stack_position: 'ASC' },
+      });
+    } else {
+      contextPack = await contextPackBuilder.build(run);
+    }
 
     // Store context pack in run record
     await runRepo.update(runId, {
@@ -138,9 +161,13 @@ export class ReviewRunner {
 
     // 4. Construct prompt — use custom prompt if user-supplied, otherwise build from template
     let prompt: string;
+    let disableProjectRules = false;
     if (run.prompt) {
       prompt = run.prompt;
       logger.info({ runId }, 'Using user-supplied custom prompt');
+    } else if (isStackReview && 'perPrDiffs' in contextPack) {
+      prompt = buildStackPrompt(contextPack.perPrDiffs, contextPack as StackContextPack);
+      await runRepo.update(runId, { prompt });
     } else {
       // Check for prior review posts on this PR to include follow-up context
       let priorComments: PRCommentContext | undefined;
@@ -167,7 +194,9 @@ export class ReviewRunner {
         }
       }
 
-      prompt = await buildPrompt(pr, contextPack, priorComments);
+      const buildResult = await buildPrompt(pr, contextPack, priorComments);
+      prompt = buildResult.prompt;
+      disableProjectRules = buildResult.disableProjectRules;
       await runRepo.update(runId, { prompt });
     }
 
@@ -192,7 +221,12 @@ export class ReviewRunner {
       allowedTools.push('mcp__claude_ai_Notion__*');
     }
 
-    logger.info({ runId, repoDir, allowedTools }, 'Spawning CLI');
+    // If project rules are disabled, add instruction to the prompt
+    if (disableProjectRules) {
+      prompt += '\n\nIMPORTANT: Do not read or apply project rule files (CLAUDE.md, AGENTS.md, .cursor/rules, .review/rules). Skip all rule discovery.';
+    }
+
+    logger.info({ runId, repoDir, allowedTools, disableProjectRules }, 'Spawning CLI');
     runEventBus.emit(runId, { type: 'phase', phase: 'cli', message: 'Starting Claude review...' });
     const rawOutput = await this.spawnCli(prompt, repoDir, runId, allowedTools);
 
@@ -221,6 +255,27 @@ export class ReviewRunner {
     // 8. Create Finding records from parsed findings
     if (parseResult.findings.length > 0) {
       const findingEntities = parseResult.findings.map((f, index) => {
+        // For stack reviews, resolve pr_id from pr_number
+        let prId: string | null = null;
+        if (isStackReview && stackPrs.length > 0) {
+          if (f.pr_number) {
+            const matchedPr = stackPrs.find(
+              (p) => p.github_pr_number === f.pr_number,
+            );
+            if (matchedPr) prId = matchedPr.id;
+          }
+          // Fallback: match file_path against each PR's changed files
+          if (!prId && 'perPrDiffs' in contextPack) {
+            const stackCtx = contextPack as StackContextPack;
+            for (const prDiff of stackCtx.perPrDiffs) {
+              if (prDiff.changedFiles.includes(f.file_path)) {
+                prId = prDiff.prId;
+                break;
+              }
+            }
+          }
+        }
+
         const finding = findingRepo.create({
           run_id: runId,
           file_path: f.file_path,
@@ -235,6 +290,7 @@ export class ReviewRunner {
           rule_ref: f.rule_ref,
           status: FindingStatus.Pending,
           toolkit_order: index,
+          pr_id: prId,
         });
         return finding;
       });
@@ -438,39 +494,55 @@ export class ReviewRunner {
   }
 }
 
-// --- Prompt Builder ---
+// --- Stack Prompt Builder ---
 
-export async function buildPrompt(
-  pr: PullRequest,
-  ctx: ContextPack,
-  priorComments?: PRCommentContext,
-): Promise<string> {
-  const templateRepo = AppDataSource.getRepository(PromptTemplate);
-  const template = await templateRepo.findOneBy({ name: 'default' });
-
-  if (!template) {
-    throw new Error('Default prompt template not found. Run migrations to create it.');
-  }
-
+export function buildStackPrompt(
+  stackPrs: Array<{
+    prId: string;
+    prNumber: number;
+    stackPosition: number;
+    title: string;
+  }>,
+  ctx: StackContextPack,
+): string {
   const parts: string[] = [];
 
-  // System instructions from template (with placeholder replacement)
-  const preamble = template.system_instructions
-    .replace(/\{\{pr_number\}\}/g, String(pr.github_pr_number))
-    .replace(/\{\{pr_title\}\}/g, pr.title);
-  parts.push(preamble);
+  parts.push(
+    `You are a senior code reviewer analyzing a stack of ${stackPrs.length} PRs.`,
+  );
+  parts.push(
+    'Review the entire stack holistically — look for cross-PR issues, architectural coherence, and consistency.',
+  );
+  parts.push('');
+  parts.push(`## Repository`);
+  parts.push(`${ctx.repoOwner}/${ctx.repoName}`);
+  parts.push('');
+  parts.push(`## Stack PRs (bottom to top)`);
 
-  // PR metadata — the toolkit reads the actual diff and rules from the repo
-  parts.push(`\n## PR Metadata`);
-  parts.push(`Branch: ${pr.branch_name} → ${pr.base_branch}`);
+  // Render in reverse stack order (top of stack first)
+  const reversed = [...stackPrs].sort(
+    (a, b) => b.stackPosition - a.stackPosition,
+  );
 
-  if (pr.stack_id && pr.stack_position !== null && pr.stack_size !== null) {
-    parts.push(`Stack position: ${pr.stack_position}/${pr.stack_size}`);
+  for (const pr of reversed) {
+    parts.push(
+      `- PR #${pr.prNumber}: ${pr.title} (${pr.stackPosition}/${stackPrs.length})`,
+    );
   }
 
-  // Business context — toolkit uses MCP to fetch full content
+  parts.push('');
+  parts.push('## Instructions');
+  parts.push(
+    'Use your tools to fetch the diff for each PR (`gh pr diff <number>`), read the codebase, and discover project rules.',
+  );
+  parts.push(
+    'Do NOT rely on any pre-supplied diff. You have full access to the repository and GitHub CLI.',
+  );
+
+  // Business context
   if (ctx.linearTicketId || ctx.notionUrl) {
-    parts.push('\n## Business Context');
+    parts.push('');
+    parts.push('## Business Context');
     if (ctx.linearTicketId) {
       parts.push(`Linear ticket: ${ctx.linearTicketId}`);
     }
@@ -479,45 +551,189 @@ export async function buildPrompt(
     }
   }
 
-  // Prior review comments — only include when there are threaded comments
-  if (priorComments && priorComments.threads.length > 0) {
-    parts.push('\n## Prior Review Comments');
-    parts.push(
-      'This PR has been reviewed before. Below are the comments that were posted and any replies from the author.',
-    );
-    parts.push(
-      'Check whether each issue has been addressed in the current diff. If resolved, do not re-raise it.',
-    );
-    parts.push(
-      'If still present or only partially fixed, include it in your findings with a note about what remains.',
-    );
-
-    for (let i = 0; i < priorComments.threads.length; i++) {
-      const thread = priorComments.threads[i];
-      const root = thread.rootComment;
-      const location = root.line ? `${root.path}:${root.line}` : root.path;
-      const excerpt =
-        root.body.length > 120 ? `${root.body.slice(0, 120)}...` : root.body;
-
-      parts.push(`\n### Thread ${i + 1}: [${location}]`);
-      parts.push(`**Reviewer (@${root.user.login}):** ${excerpt}`);
-
-      if (thread.replies.length > 0) {
-        for (const reply of thread.replies) {
-          const replyExcerpt =
-            reply.body.length > 120 ? `${reply.body.slice(0, 120)}...` : reply.body;
-          parts.push(`**@${reply.user.login}:** ${replyExcerpt}`);
-        }
-      } else {
-        parts.push('*No replies*');
-      }
-    }
-  }
-
-  // Output instructions from template
-  parts.push(`\n${template.output_instructions}`);
+  parts.push('');
+  parts.push('## Output Instructions');
+  parts.push(
+    'Output a JSON object with the same schema as a single-PR review, but each finding MUST include "pr_number": <number> to attribute it to the correct PR.',
+  );
+  parts.push(
+    'Look for: cross-PR inconsistencies, missing integration points, duplicated code across PRs, and issues that only become visible when viewing the full stack.',
+  );
 
   return parts.join('\n');
+}
+
+// --- Prompt Builder ---
+
+export interface BuildPromptResult {
+  prompt: string;
+  disableProjectRules: boolean;
+}
+
+export async function buildPrompt(
+  pr: PullRequest,
+  ctx: ContextPack,
+  priorComments?: PRCommentContext,
+): Promise<BuildPromptResult> {
+  const templateRepo = AppDataSource.getRepository(PromptTemplate);
+  const template = await templateRepo.findOneBy({ name: 'default' });
+
+  if (!template) {
+    throw new Error('Default prompt template not found. Run migrations to create it.');
+  }
+
+  const parts: string[] = [];
+  let disableProjectRules = false;
+
+  // Use sections if available, otherwise fall back to legacy fields
+  const sections = template.sections;
+  if (sections && sections.length > 0) {
+    for (const section of sections) {
+      if (!section.enabled) {
+        if (section.key === 'rule_discovery') {
+          disableProjectRules = true;
+        }
+        continue;
+      }
+
+      switch (section.key) {
+        case 'review_instructions': {
+          const preamble = section.content
+            .replace(/\{\{pr_number\}\}/g, String(pr.github_pr_number))
+            .replace(/\{\{pr_title\}\}/g, pr.title);
+          parts.push(preamble);
+          break;
+        }
+        case 'rule_discovery':
+          // No prompt content — controls CLI flag only
+          break;
+        case 'pr_metadata': {
+          parts.push(`\n## PR Metadata`);
+          parts.push(`Branch: ${pr.branch_name} → ${pr.base_branch}`);
+          if (pr.stack_id && pr.stack_position !== null && pr.stack_size !== null) {
+            parts.push(`Stack position: ${pr.stack_position}/${pr.stack_size}`);
+          }
+          break;
+        }
+        case 'business_context': {
+          if (ctx.linearTicketId || ctx.notionUrl) {
+            parts.push('\n## Business Context');
+            if (ctx.linearTicketId) {
+              parts.push(`Linear ticket: ${ctx.linearTicketId}`);
+            }
+            if (ctx.notionUrl) {
+              parts.push(`Notion proposal: ${ctx.notionUrl}`);
+            }
+          }
+          break;
+        }
+        case 'prior_comments': {
+          if (priorComments && priorComments.threads.length > 0) {
+            parts.push('\n## Prior Review Comments');
+            parts.push(
+              'This PR has been reviewed before. Below are the comments that were posted and any replies from the author.',
+            );
+            parts.push(
+              'Check whether each issue has been addressed in the current diff. If resolved, do not re-raise it.',
+            );
+            parts.push(
+              'If still present or only partially fixed, include it in your findings with a note about what remains.',
+            );
+
+            for (let i = 0; i < priorComments.threads.length; i++) {
+              const thread = priorComments.threads[i];
+              const root = thread.rootComment;
+              const location = root.line ? `${root.path}:${root.line}` : root.path;
+              const excerpt =
+                root.body.length > 120 ? `${root.body.slice(0, 120)}...` : root.body;
+
+              parts.push(`\n### Thread ${i + 1}: [${location}]`);
+              parts.push(`**Reviewer (@${root.user.login}):** ${excerpt}`);
+
+              if (thread.replies.length > 0) {
+                for (const reply of thread.replies) {
+                  const replyExcerpt =
+                    reply.body.length > 120
+                      ? `${reply.body.slice(0, 120)}...`
+                      : reply.body;
+                  parts.push(`**@${reply.user.login}:** ${replyExcerpt}`);
+                }
+              } else {
+                parts.push('*No replies*');
+              }
+            }
+          }
+          break;
+        }
+        case 'output_format': {
+          parts.push(`\n${section.content}`);
+          break;
+        }
+      }
+    }
+  } else {
+    // Legacy fallback: no sections defined
+    const preamble = template.system_instructions
+      .replace(/\{\{pr_number\}\}/g, String(pr.github_pr_number))
+      .replace(/\{\{pr_title\}\}/g, pr.title);
+    parts.push(preamble);
+
+    parts.push(`\n## PR Metadata`);
+    parts.push(`Branch: ${pr.branch_name} → ${pr.base_branch}`);
+    if (pr.stack_id && pr.stack_position !== null && pr.stack_size !== null) {
+      parts.push(`Stack position: ${pr.stack_position}/${pr.stack_size}`);
+    }
+
+    if (ctx.linearTicketId || ctx.notionUrl) {
+      parts.push('\n## Business Context');
+      if (ctx.linearTicketId) {
+        parts.push(`Linear ticket: ${ctx.linearTicketId}`);
+      }
+      if (ctx.notionUrl) {
+        parts.push(`Notion proposal: ${ctx.notionUrl}`);
+      }
+    }
+
+    if (priorComments && priorComments.threads.length > 0) {
+      parts.push('\n## Prior Review Comments');
+      parts.push(
+        'This PR has been reviewed before. Below are the comments that were posted and any replies from the author.',
+      );
+      parts.push(
+        'Check whether each issue has been addressed in the current diff. If resolved, do not re-raise it.',
+      );
+      parts.push(
+        'If still present or only partially fixed, include it in your findings with a note about what remains.',
+      );
+
+      for (let i = 0; i < priorComments.threads.length; i++) {
+        const thread = priorComments.threads[i];
+        const root = thread.rootComment;
+        const location = root.line ? `${root.path}:${root.line}` : root.path;
+        const excerpt =
+          root.body.length > 120 ? `${root.body.slice(0, 120)}...` : root.body;
+
+        parts.push(`\n### Thread ${i + 1}: [${location}]`);
+        parts.push(`**Reviewer (@${root.user.login}):** ${excerpt}`);
+
+        if (thread.replies.length > 0) {
+          for (const reply of thread.replies) {
+            const replyExcerpt =
+              reply.body.length > 120
+                ? `${reply.body.slice(0, 120)}...`
+                : reply.body;
+            parts.push(`**@${reply.user.login}:** ${replyExcerpt}`);
+          }
+        } else {
+          parts.push('*No replies*');
+        }
+      }
+    }
+
+    parts.push(`\n${template.output_instructions}`);
+  }
+
+  return { prompt: parts.join('\n'), disableProjectRules };
 }
 
 // Module-level singleton

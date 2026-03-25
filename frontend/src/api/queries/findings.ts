@@ -16,6 +16,8 @@ export interface FindingItem {
   status: 'pending' | 'accepted' | 'rejected' | 'edited' | 'posted';
   edited_body: string | null;
   toolkit_order: number;
+  pr_id: string | null;
+  pr_number: number | null;
 }
 
 export interface FindingsCounts {

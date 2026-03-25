@@ -7,6 +7,16 @@ import {
   Unique,
 } from 'typeorm';
 
+export interface PromptSection {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  content: string;
+  editable: boolean;
+  system: boolean;
+}
+
 @Entity()
 @Unique(['name'])
 export class PromptTemplate {
@@ -21,6 +31,9 @@ export class PromptTemplate {
 
   @Column({ type: 'text' })
   output_instructions!: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  sections!: PromptSection[] | null;
 
   @CreateDateColumn()
   created_at!: Date;

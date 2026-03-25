@@ -53,6 +53,8 @@ export class SyncService {
           is_draft: ghPr.draft,
           github_updated_at: new Date(ghPr.updated_at),
           linear_ticket_id: linearTicket,
+          github_comments: ghPr.comments ?? 0,
+          github_review_comments: ghPr.review_comments ?? 0,
         },
         {
           conflictPaths: ['repo_id', 'github_pr_number'],

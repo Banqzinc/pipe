@@ -1,11 +1,22 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../client.ts';
 
+export interface PromptSection {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  content: string;
+  editable: boolean;
+  system: boolean;
+}
+
 export interface PromptTemplateData {
   id: string;
   name: string;
   system_instructions: string;
   output_instructions: string;
+  sections: PromptSection[] | null;
   updated_at: string;
 }
 

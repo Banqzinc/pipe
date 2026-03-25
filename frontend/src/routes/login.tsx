@@ -51,7 +51,9 @@ function LoginContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-white text-center mb-8">Pipe</h1>
+        <div className="flex justify-center mb-8">
+          <img src="/pipe-logo.png" alt="Pipe" className="h-[256px] w-[256px]" />
+        </div>
         <div className="space-y-4">
           {error && <p className="text-sm text-red-400 text-center">{error}</p>}
           {loading ? (

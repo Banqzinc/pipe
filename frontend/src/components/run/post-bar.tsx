@@ -12,6 +12,9 @@ interface PostBarProps {
   postError: string | null;
   postSuccess: string | null;
   onDismissError: () => void;
+  onApprove?: () => void;
+  isApproving?: boolean;
+  isApproved?: boolean;
 }
 
 export function PostBar({
@@ -26,6 +29,9 @@ export function PostBar({
   postError,
   postSuccess,
   onDismissError,
+  onApprove,
+  isApproving,
+  isApproved,
 }: PostBarProps) {
   const acceptedCount = counts.accepted + counts.edited;
   const actionDisabled = isStale || hasPost || isPosting;
@@ -112,6 +118,20 @@ export function PostBar({
                     : 'Post to GitHub'}
               </button>
             </>
+          )}
+          {onApprove && !isSelfReview && (
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={isStale || isApproving || isApproved}
+              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                isApproved
+                  ? 'bg-green-600/20 text-green-400 cursor-default'
+                  : 'bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white'
+              }`}
+            >
+              {isApproving ? 'Approving...' : isApproved ? 'Approved' : 'Approve PR'}
+            </button>
           )}
         </div>
       </div>

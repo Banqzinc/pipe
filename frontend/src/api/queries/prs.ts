@@ -61,6 +61,10 @@ export interface PullRequestListItem {
     };
     has_post: boolean;
   } | null;
+  comment_counts: {
+    discussions: number;
+    review_comments: number;
+  } | null;
   created_at: string;
   updated_at: string;
 }

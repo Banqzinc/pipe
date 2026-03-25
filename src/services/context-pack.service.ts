@@ -165,6 +165,110 @@ export class ContextPackBuilder {
 
     return contextPack;
   }
+
+  async buildForStack(
+    stackId: string,
+    repoId: string,
+  ): Promise<StackContextPack> {
+    const config = loadConfig();
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    const repoEntity = AppDataSource.getRepository(Repo);
+
+    const repo = await repoEntity.findOneBy({ id: repoId });
+    if (!repo) {
+      throw new Error(`Repo not found: ${repoId}`);
+    }
+
+    const stackPrs = await prRepo.find({
+      where: { stack_id: stackId, repo_id: repoId },
+      order: { stack_position: 'ASC' },
+    });
+
+    if (stackPrs.length === 0) {
+      throw new Error(`No PRs found for stack: ${stackId}`);
+    }
+
+    const pat = decrypt(repo.pat_token_encrypted);
+    const client = new GitHubClient(pat);
+    const owner = repo.github_owner;
+    const name = repo.github_name;
+
+    // Fetch changed file lists per PR (lightweight — used for finding attribution fallback)
+    const perPrDiffs: StackContextPack['perPrDiffs'] = [];
+    const allChangedFiles: string[] = [];
+
+    for (const pr of stackPrs) {
+      let changedFiles: string[] = [];
+
+      try {
+        const files = await client.getPRFiles(owner, name, pr.github_pr_number);
+        changedFiles = files.map((f) => f.filename);
+      } catch (err) {
+        logger.error(
+          { stackId, prNumber: pr.github_pr_number, err },
+          'Failed to fetch PR files for stack',
+        );
+      }
+
+      perPrDiffs.push({
+        prId: pr.id,
+        prNumber: pr.github_pr_number,
+        stackPosition: pr.stack_position ?? 0,
+        title: pr.title,
+        changedFiles,
+      });
+
+      allChangedFiles.push(...changedFiles);
+    }
+
+    // Clone/checkout to HEAD SHA of topmost PR so Claude can read the codebase
+    const topmostPr = stackPrs[stackPrs.length - 1];
+    const repoDir = path.join(config.reposDir, owner, name);
+    let cloneOk = false;
+    try {
+      await ensureRepo(repoDir, owner, name, pat, topmostPr.head_sha);
+      cloneOk = true;
+    } catch (err) {
+      logger.error({ stackId, repoDir, err }, 'Failed to clone/checkout repo for stack');
+    }
+
+    let rules: Array<{ path: string; content: string }> = [];
+    if (cloneOk) {
+      try {
+        rules = discoverRules(repoDir, allChangedFiles);
+      } catch (err) {
+        logger.error({ stackId, err }, 'Failed to discover rules for stack');
+      }
+    }
+
+    return {
+      diff: '',
+      diffTruncated: false,
+      changedFiles: [...new Set(allChangedFiles)],
+      rules,
+      parentDiff: null,
+      childDiff: null,
+      linearTicketId: stackPrs[0].linear_ticket_id,
+      notionUrl: stackPrs[0].notion_url,
+      isStackReview: true,
+      repoOwner: owner,
+      repoName: name,
+      perPrDiffs,
+    };
+  }
+}
+
+export interface StackContextPack extends ContextPack {
+  isStackReview: true;
+  repoOwner: string;
+  repoName: string;
+  perPrDiffs: Array<{
+    prId: string;
+    prNumber: number;
+    stackPosition: number;
+    title: string;
+    changedFiles: string[];
+  }>;
 }
 
 // --- Helpers ---
