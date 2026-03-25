@@ -15,8 +15,11 @@ import {
 import { useCreateRun } from '../../api/mutations/runs.ts';
 import { useRunStream } from '../../hooks/use-run-stream.ts';
 import { usePRComments } from '../../api/queries/comments.ts';
+import { usePRDiff } from '../../api/queries/diff.ts';
+import { useApprovePR } from '../../api/mutations/approve.ts';
 import { ReviewBrief } from '../../components/run/review-brief.tsx';
 import { FindingList } from '../../components/run/finding-list.tsx';
+import { DiffViewer } from '../../components/diff/diff-viewer.tsx';
 import { StaleBanner } from '../../components/run/stale-banner.tsx';
 import { PostBar } from '../../components/run/post-bar.tsx';
 
@@ -24,12 +27,24 @@ function RunPage() {
   const { id } = Route.useParams();
   const router = useRouter();
 
+  // View mode toggle — default to diff so annotations are visible as sidebar
+  const [viewMode, setViewMode] = useState<'findings' | 'diff'>('diff');
+
   // Data fetching
   const { data: run, isLoading: runLoading, error: runError } = useRun(id);
   const { data: findingsData } = useFindings(id);
+
+  const isComplete =
+    run?.status === 'completed' || run?.status === 'partial';
+
   const { data: commentsData } = usePRComments(
     run?.pr.id ?? '',
-    !!(run?.has_post),
+    !!isComplete,
+  );
+
+  const { data: diffData } = usePRDiff(
+    run?.pr.id ?? '',
+    !!isComplete,
   );
 
   // Mutations
@@ -38,6 +53,7 @@ function RunPage() {
   const postToGithub = usePostToGithub(id);
   const exportFindings = useExportFindings(id);
   const createRun = useCreateRun();
+  const approvePR = useApprovePR(run?.pr.id ?? '');
 
   const queryClient = useQueryClient();
 
@@ -84,12 +100,11 @@ function RunPage() {
   const isStale =
     run != null && run.pr.head_sha !== run.head_sha;
 
-  // Whether the run is completed (or partial — still reviewable)
-  const isComplete =
-    run?.status === 'completed' || run?.status === 'partial';
-
   // Whether we're in read-only mode (already posted)
   const isReadOnly = run?.has_post ?? false;
+
+  // Approve state
+  const [isApproved, setIsApproved] = useState(false);
 
   // Clamp focused index
   useEffect(() => {
@@ -202,6 +217,20 @@ function RunPage() {
       },
     });
   }, [exportFindings, isReadOnly, isStale]);
+
+  const handleApprove = useCallback(() => {
+    if (isStale || run?.is_self_review) return;
+    if (
+      !window.confirm(
+        'Approve this PR on GitHub? This will submit an approval review.',
+      )
+    ) {
+      return;
+    }
+    approvePR.mutate(undefined, {
+      onSuccess: () => setIsApproved(true),
+    });
+  }, [approvePR, isStale, run?.is_self_review]);
 
   const handleRerun = useCallback(() => {
     if (!run) return;
@@ -348,6 +377,11 @@ function RunPage() {
                 Stack {run.pr.stack_position}/{run.pr.stack_size}
               </span>
             )}
+          {run.stack_id && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-400">
+              Stack Review
+            </span>
+          )}
           {run.is_self_review && (
             <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-orange-500/20 text-orange-400">
               SELF
@@ -375,6 +409,24 @@ function RunPage() {
           />
         )}
       </div>
+
+      {/* Stack PRs listing */}
+      {run.stack_id && run.stack_prs && run.stack_prs.length > 0 && (
+        <div className="px-6 py-3 border-b border-gray-800 bg-purple-500/5">
+          <div className="text-xs font-medium text-gray-500 mb-1">Stack PRs</div>
+          <div className="flex flex-wrap gap-2">
+            {run.stack_prs.map((sp) => (
+              <span
+                key={sp.id}
+                className="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-800 rounded px-2 py-1"
+              >
+                <span className="font-mono text-gray-500">#{sp.github_pr_number}</span>
+                <span className="truncate max-w-48">{sp.title}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="px-6 py-6 space-y-6">
@@ -490,65 +542,120 @@ function RunPage() {
               </div>
             )}
 
-            {/* Keyboard shortcuts help */}
-            {!isReadOnly && sortedFindings.length > 0 && (
-              <div className="text-xs text-gray-600 flex flex-wrap gap-3">
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    j
-                  </kbd>
-                  /
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    k
-                  </kbd>{' '}
-                  navigate
-                </span>
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    a
-                  </kbd>{' '}
-                  accept
-                </span>
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    r
-                  </kbd>{' '}
-                  reject
-                </span>
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    e
-                  </kbd>{' '}
-                  edit
-                </span>
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    Shift+R
-                  </kbd>{' '}
-                  reject nitpicks
-                </span>
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
-                    Shift+P
-                  </kbd>{' '}
-                  post/export
-                </span>
-              </div>
+            {/* View toggle */}
+            <div className="flex items-center gap-1 border border-gray-800 rounded-lg p-0.5 w-fit">
+              <button
+                type="button"
+                onClick={() => setViewMode('findings')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'findings'
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Findings ({counts.total})
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('diff')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'diff'
+                    ? 'bg-gray-700 text-gray-200'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Diff
+              </button>
+            </div>
+
+            {viewMode === 'findings' && (
+              <>
+                {/* Keyboard shortcuts help */}
+                {!isReadOnly && sortedFindings.length > 0 && (
+                  <div className="text-xs text-gray-600 flex flex-wrap gap-3">
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        j
+                      </kbd>
+                      /
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        k
+                      </kbd>{' '}
+                      navigate
+                    </span>
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        a
+                      </kbd>{' '}
+                      accept
+                    </span>
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        r
+                      </kbd>{' '}
+                      reject
+                    </span>
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        e
+                      </kbd>{' '}
+                      edit
+                    </span>
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        Shift+R
+                      </kbd>{' '}
+                      reject nitpicks
+                    </span>
+                    <span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                        Shift+P
+                      </kbd>{' '}
+                      post/export
+                    </span>
+                  </div>
+                )}
+
+                <FindingList
+                  findings={sortedFindings}
+                  focusedIndex={focusedIndex}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
+                  onStartEdit={handleStartEdit}
+                  editingId={editingId}
+                  editBody={editBody}
+                  onEditBodyChange={setEditBody}
+                  onEditSave={handleEditSave}
+                  onEditCancel={handleEditCancel}
+                  commentThreads={commentsData?.threads}
+                  stackPrs={run.stack_prs}
+                />
+              </>
             )}
 
-            <FindingList
-              findings={sortedFindings}
-              focusedIndex={focusedIndex}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              onStartEdit={handleStartEdit}
-              editingId={editingId}
-              editBody={editBody}
-              onEditBodyChange={setEditBody}
-              onEditSave={handleEditSave}
-              onEditCancel={handleEditCancel}
-              commentThreads={commentsData?.threads}
-            />
+            {viewMode === 'diff' && (
+              diffData ? (
+                <DiffViewer
+                  files={diffData.files}
+                  findings={findings}
+                  commentThreads={commentsData?.threads}
+                  issueComments={commentsData?.issue_comments}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
+                  onStartEdit={handleStartEdit}
+                  editingId={editingId}
+                  editBody={editBody}
+                  onEditBodyChange={setEditBody}
+                  onEditSave={handleEditSave}
+                  onEditCancel={handleEditCancel}
+                />
+              ) : (
+                <div className="flex items-center gap-3 py-4">
+                  <Spinner />
+                  <span className="text-gray-400 text-sm">Loading diff...</span>
+                </div>
+              )
+            )}
           </>
         )}
       </div>
@@ -567,6 +674,9 @@ function RunPage() {
           postError={postError}
           postSuccess={postSuccess}
           onDismissError={() => setPostError(null)}
+          onApprove={handleApprove}
+          isApproving={approvePR.isPending}
+          isApproved={isApproved}
         />
       )}
 
