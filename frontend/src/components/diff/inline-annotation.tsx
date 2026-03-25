@@ -68,6 +68,8 @@ export function InlineAnnotation({
   const [expandedSet, setExpandedSet] = useState<Set<number>>(
     () => new Set(annotations.map((_, i) => i)),
   );
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyBody, setReplyBody] = useState('');
 
   const toggle = (index: number) => {
     setExpandedSet((prev) => {
@@ -171,7 +173,7 @@ export function InlineAnnotation({
           return (
             <div
               key={`comment-${t.root_comment_id}-${i}`}
-              className="border-l-4 border-l-gray-600 bg-gray-900 rounded-r overflow-hidden"
+              className={`border-l-4 border-l-gray-600 bg-gray-900 rounded-r overflow-hidden ${t.is_resolved ? 'opacity-40' : ''}`}
             >
               <button
                 type="button"
@@ -183,6 +185,22 @@ export function InlineAnnotation({
                 <span className="text-xs text-gray-500 truncate flex-1">
                   {truncate(t.root_body, 60)}
                 </span>
+                {t.thread_node_id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onResolveThread?.(t.root_comment_id, t.thread_node_id!, !t.is_resolved);
+                    }}
+                    className={`ml-auto shrink-0 text-xs px-1.5 py-0.5 rounded ${
+                      t.is_resolved
+                        ? 'text-green-400 bg-green-500/20 hover:bg-green-500/30'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    {t.is_resolved ? '\u2713 Resolved' : 'Resolve'}
+                  </button>
+                )}
               </button>
               {expanded && (
                 <div className="px-3 pb-3 overflow-x-hidden break-words">
@@ -216,6 +234,72 @@ export function InlineAnnotation({
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {expanded && !t.is_resolved && (
+                    <div className="mt-2 pt-2 border-t border-gray-800">
+                      {replyingTo === t.root_comment_id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={replyBody}
+                            onChange={(e) => setReplyBody(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                setReplyingTo(null);
+                                setReplyBody('');
+                              }
+                              if (
+                                e.key === 'Enter' &&
+                                (e.metaKey || e.ctrlKey) &&
+                                replyBody.trim()
+                              ) {
+                                onReplyToComment?.(t.root_comment_id, replyBody.trim());
+                                setReplyingTo(null);
+                                setReplyBody('');
+                              }
+                            }}
+                            rows={3}
+                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 resize-y"
+                            placeholder="Write a reply..."
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (replyBody.trim()) {
+                                  onReplyToComment?.(t.root_comment_id, replyBody.trim());
+                                }
+                                setReplyingTo(null);
+                                setReplyBody('');
+                              }}
+                              disabled={!replyBody.trim()}
+                              className="px-2 py-0.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
+                            >
+                              Reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplyingTo(null);
+                                setReplyBody('');
+                              }}
+                              className="px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <span className="text-xs text-gray-600 ml-1">Cmd+Enter to send</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setReplyingTo(t.root_comment_id)}
+                          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                        >
+                          Reply
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
