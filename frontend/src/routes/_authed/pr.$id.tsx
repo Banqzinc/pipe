@@ -186,27 +186,62 @@ function PrDetailPage() {
         )}
       </div>
 
-      {/* Stack context */}
+      {/* Stack context — vertical Graphite-style */}
       {pr.stack_id && stackPrs && stackPrs.length > 1 && (
-        <div className="px-6 py-3 border-b border-gray-800 bg-purple-500/5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500">Stack:</span>
-            {stackPrs.map((sibling) => (
-              <Link
-                key={sibling.id}
-                to={`/pr/${sibling.id}` as '/'}
-                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs border transition-colors ${
-                  sibling.id === pr.id
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                    : 'bg-gray-800 text-gray-400 hover:text-gray-200 border-gray-700 hover:border-gray-500'
-                }`}
-              >
-                <span className="text-purple-400">
-                  {sibling.stack_position}/{sibling.stack_size}
+        <div className="border-b border-gray-800 bg-purple-500/5 mr-[360px]">
+          <div className="px-6 py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Stack</span>
+              <span className="text-xs text-gray-600">
+                {pr.stack_position} of {pr.stack_size}
+              </span>
+            </div>
+            <div className="relative pl-5">
+              {/* Vertical connector line */}
+              <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-700" />
+              {/* PRs — highest position (top of stack) first */}
+              {[...stackPrs].reverse().map((sibling) => {
+                const isCurrent = sibling.id === pr.id;
+                return (
+                  <div key={sibling.id} className="relative flex items-start gap-3 pb-3">
+                    {/* Dot */}
+                    <div className="absolute -left-5 top-1">
+                      <div
+                        className={`w-[9px] h-[9px] rounded-full border-2 ${
+                          isCurrent
+                            ? 'bg-purple-400 border-purple-400'
+                            : 'bg-gray-950 border-gray-600'
+                        }`}
+                      />
+                    </div>
+                    <Link
+                      to={`/pr/${sibling.id}` as '/'}
+                      className={`group flex items-center gap-2 py-0.5 text-xs transition-colors ${
+                        isCurrent
+                          ? 'text-purple-300'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <span className="font-mono text-gray-500 group-hover:text-gray-400">
+                        #{sibling.github_pr_number}
+                      </span>
+                      <span className={`truncate max-w-md ${isCurrent ? 'font-medium' : ''}`}>
+                        {sibling.title}
+                      </span>
+                    </Link>
+                  </div>
+                );
+              })}
+              {/* Base branch (trunk) */}
+              <div className="relative flex items-start gap-3">
+                <div className="absolute -left-5 top-1">
+                  <div className="w-[9px] h-[9px] rounded-full border-2 bg-gray-950 border-gray-600" />
+                </div>
+                <span className="text-xs text-gray-600 py-0.5">
+                  {stackPrs[0]?.base_branch ?? 'base'}
                 </span>
-                #{sibling.github_pr_number} {sibling.title}
-              </Link>
-            ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
