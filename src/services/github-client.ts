@@ -146,6 +146,17 @@ export class GitHubClient {
       );
     }
 
+    if (!res.ok) {
+      let message: string;
+      try {
+        const body = (await res.json()) as { message?: string };
+        message = body.message ?? res.statusText;
+      } catch {
+        message = res.statusText;
+      }
+      throw new AppError(`GitHub GraphQL error: ${message}`, res.status, 'GITHUB_GRAPHQL_ERROR');
+    }
+
     const json = (await res.json()) as {
       data?: T;
       errors?: Array<{ message: string }>;
@@ -227,7 +238,7 @@ export class GitHubClient {
   async replyToComment(
     owner: string,
     repo: string,
-    _pullNumber: number,
+    pullNumber: number,
     commentId: number,
     body: string
   ): Promise<GitHubReviewComment> {
