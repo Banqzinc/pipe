@@ -7,6 +7,9 @@ import { useUpdatePr } from '../../api/mutations/prs.ts';
 import { useSyncAll } from '../../api/mutations/repos.ts';
 import { PrTable } from '../../components/inbox/pr-table.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
 
 type FilterTab = 'all' | 'needs_review' | 'in_progress' | 'completed';
 
@@ -114,12 +117,9 @@ function InboxPage() {
   if (repos && repos.length === 0) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-3">
-          <img src="/pipe-logo.png" alt="" className="h-10 w-10" />
-          <h1 className="text-xl font-semibold">Inbox</h1>
-        </div>
+        <h1 className="text-xl font-semibold">Inbox</h1>
         <div className="mt-12 flex flex-col items-center text-center">
-          <div className="text-gray-500 text-4xl mb-4">
+          <div className="text-muted-foreground text-4xl mb-4">
             <svg
               className="w-12 h-12 mx-auto"
               fill="none"
@@ -134,10 +134,10 @@ function InboxPage() {
               />
             </svg>
           </div>
-          <p className="text-gray-400 text-lg">No repositories configured</p>
-          <p className="text-gray-500 mt-1">
+          <p className="text-muted-foreground text-lg">No repositories configured</p>
+          <p className="text-muted-foreground/70 mt-1">
             Run{' '}
-            <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">
+            <code className="bg-muted px-1.5 py-0.5 rounded text-foreground/80">
               pipe repo add
             </code>{' '}
             to connect a repository.
@@ -150,27 +150,24 @@ function InboxPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <img src="/pipe-logo.png" alt="" className="h-10 w-10" />
-          <h1 className="text-xl font-semibold">Inbox</h1>
-        </div>
+        <h1 className="text-xl font-semibold">Inbox</h1>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => syncAll.mutate()}
             disabled={syncAll.isPending}
-            className="px-3 py-1.5 text-sm font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {syncAll.isPending ? 'Syncing...' : 'Sync PRs'}
-          </button>
+          </Button>
 
           {/* Repo filter */}
           {repos && repos.length > 1 && (
             <select
               value={selectedRepo}
               onChange={(e) => setSelectedRepo(e.target.value)}
-              className="bg-[#252528] border border-white/[0.08] rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+              className="bg-card border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-ring"
             >
               <option value="">All repos</option>
               {repos.map((repo) => (
@@ -184,42 +181,37 @@ function InboxPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-6 border-b border-white/[0.08]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            {tab.label}
-            <span
-              className={`ml-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
-                activeTab === tab.key
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-white/[0.06] text-gray-500'
-              }`}
-            >
-              {counts[tab.key]}
-            </span>
-          </button>
-        ))}
-      </div>
+      <Tabs
+        defaultValue="needs_review"
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as FilterTab)}
+        className="mb-6"
+      >
+        <TabsList variant="line" className="border-b border-border w-full justify-start">
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.key} value={tab.key} className="gap-2">
+              {tab.label}
+              <Badge
+                variant="secondary"
+                className="ml-1 h-5 min-w-5 px-1.5 text-[11px] tabular-nums"
+              >
+                {counts[tab.key]}
+              </Badge>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
-          <div className="text-gray-500 text-sm">Loading pull requests...</div>
+          <div className="text-muted-foreground text-sm">Loading pull requests...</div>
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm">
           Failed to load pull requests:{' '}
           {error instanceof Error ? error.message : 'Unknown error'}
         </div>
@@ -243,7 +235,7 @@ function InboxPage() {
       {!isLoading && !error && prs.length === 0 && repos && repos.length > 0 && (
         <div className="flex flex-col items-center text-center py-12">
           <svg
-            className="w-10 h-10 text-gray-600 mb-3"
+            className="w-10 h-10 text-muted-foreground/50 mb-3"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -255,8 +247,8 @@ function InboxPage() {
               d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-17.5 0V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 0111.048 0c1.131.094 1.976 1.057 1.976 2.192V13.5"
             />
           </svg>
-          <p className="text-gray-400">No open PRs</p>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-muted-foreground">No open PRs</p>
+          <p className="text-muted-foreground/70 text-sm mt-1">
             Sync a repo or wait for new PRs to appear.
           </p>
         </div>

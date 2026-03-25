@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PullRequestListItem } from '../../api/queries/prs.ts';
 import { PrRow } from './pr-table.tsx';
 import { SplitButton } from '../common/split-button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
 
 interface StackGroupProps {
   stackId: string;
@@ -35,15 +36,15 @@ export function StackGroup({
   const repoName = sorted[0]?.repo.github_name;
 
   return (
-    <div className="border border-white/[0.08] rounded-lg overflow-hidden">
-      <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-white/[0.03]">
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/30">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-3 flex-1 min-w-0 hover:bg-white/[0.03] transition-colors text-left"
+          className="flex items-center gap-3 flex-1 min-w-0 hover:bg-muted/30 transition-colors text-left"
         >
           <svg
-            className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -56,14 +57,14 @@ export function StackGroup({
             />
           </svg>
           {repoName && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            <Badge variant="outline" className="text-xs font-semibold bg-blue-500/15 text-blue-400 border-blue-500/20">
               {repoName}
-            </span>
+            </Badge>
           )}
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-400">
+          <Badge variant="outline" className="text-xs font-medium bg-purple-500/20 text-purple-400 border-purple-500/20">
             STACK &middot; {prs.length} PRs
-          </span>
-          <span className="text-sm text-gray-400 truncate">{rootBranch}</span>
+          </Badge>
+          <span className="text-sm text-muted-foreground truncate">{rootBranch}</span>
         </button>
 
         {onRunStackReview && (
@@ -81,7 +82,7 @@ export function StackGroup({
       </div>
 
       {expanded && (
-        <div className="divide-y divide-white/[0.06]">
+        <div className="divide-y divide-border/60">
           {sorted.map((pr) => (
             <PrRow
               key={pr.id}
