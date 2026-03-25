@@ -19,6 +19,8 @@ interface DiffViewerProps {
   onEditBodyChange: (value: string) => void;
   onEditSave: () => void;
   onEditCancel: () => void;
+  onReplyToComment?: (commentId: number, body: string) => void;
+  onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
 }
 
 export function DiffViewer({
@@ -34,6 +36,8 @@ export function DiffViewer({
   onEditBodyChange,
   onEditSave,
   onEditCancel,
+  onReplyToComment,
+  onResolveThread,
 }: DiffViewerProps) {
   const annotationMap = useMemo(
     () => buildAnnotationMap(findings, commentThreads),
@@ -92,6 +96,8 @@ export function DiffViewer({
           onEditBodyChange={onEditBodyChange}
           onEditSave={onEditSave}
           onEditCancel={onEditCancel}
+          onReplyToComment={onReplyToComment}
+          onResolveThread={onResolveThread}
         />
       ))}
     </div>

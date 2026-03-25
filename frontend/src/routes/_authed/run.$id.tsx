@@ -17,6 +17,7 @@ import { useRunStream } from '../../hooks/use-run-stream.ts';
 import { usePRComments } from '../../api/queries/comments.ts';
 import { usePRDiff } from '../../api/queries/diff.ts';
 import { useApprovePR } from '../../api/mutations/approve.ts';
+import { useReplyToComment, useResolveThread } from '../../api/mutations/comments.ts';
 import { ReviewBrief } from '../../components/run/review-brief.tsx';
 import { FindingList } from '../../components/run/finding-list.tsx';
 import { DiffViewer } from '../../components/diff/diff-viewer.tsx';
@@ -54,6 +55,8 @@ function RunPage() {
   const exportFindings = useExportFindings(id);
   const createRun = useCreateRun();
   const approvePR = useApprovePR(run?.pr.id ?? '');
+  const replyToComment = useReplyToComment(run?.pr.id ?? '');
+  const resolveThread = useResolveThread(run?.pr.id ?? '');
 
   const queryClient = useQueryClient();
 
@@ -168,6 +171,16 @@ function RunPage() {
     setEditingId(null);
     setEditBody('');
   }, []);
+
+  const handleReplyToComment = useCallback(
+    (commentId: number, body: string) => replyToComment.mutate({ commentId, body }),
+    [replyToComment],
+  );
+  const handleResolveThread = useCallback(
+    (commentId: number, threadNodeId: string, resolved: boolean) =>
+      resolveThread.mutate({ commentId, threadNodeId, resolved }),
+    [resolveThread],
+  );
 
   const handleRejectNitpicks = useCallback(() => {
     if (isReadOnly) return;
@@ -648,6 +661,8 @@ function RunPage() {
                   onEditBodyChange={setEditBody}
                   onEditSave={handleEditSave}
                   onEditCancel={handleEditCancel}
+                  onReplyToComment={handleReplyToComment}
+                  onResolveThread={handleResolveThread}
                 />
               ) : (
                 <div className="flex items-center gap-3 py-4">

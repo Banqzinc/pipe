@@ -48,6 +48,8 @@ interface InlineAnnotationProps {
   onEditBodyChange?: (value: string) => void;
   onEditSave?: () => void;
   onEditCancel?: () => void;
+  onReplyToComment?: (commentId: number, body: string) => void;
+  onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
 }
 
 export function InlineAnnotation({
@@ -60,6 +62,8 @@ export function InlineAnnotation({
   onEditBodyChange,
   onEditSave,
   onEditCancel,
+  onReplyToComment,
+  onResolveThread,
 }: InlineAnnotationProps) {
   const [expandedSet, setExpandedSet] = useState<Set<number>>(
     () => new Set(annotations.map((_, i) => i)),
