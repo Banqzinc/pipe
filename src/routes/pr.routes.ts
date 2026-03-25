@@ -22,10 +22,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const findingRepo = AppDataSource.getRepository(Finding);
     const postRepo = AppDataSource.getRepository(ReviewPost);
 
-    const { status, repo_id, filter } = req.query as {
+    const { status, repo_id, filter, search } = req.query as {
       status?: string;
       repo_id?: string;
       filter?: string;
+      search?: string;
     };
 
     // Build query
@@ -39,6 +40,14 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     if (repo_id) {
       qb.andWhere('pr.repo_id = :repo_id', { repo_id });
+    }
+
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      qb.andWhere(
+        '(pr.title ILIKE :search OR pr.author ILIKE :search OR pr.branch_name ILIKE :search OR CAST(pr.github_pr_number AS TEXT) LIKE :search)',
+        { search: term },
+      );
     }
 
     const prs = await qb.getMany();

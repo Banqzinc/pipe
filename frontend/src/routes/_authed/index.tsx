@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { usePullRequests } from '../../api/queries/prs.ts';
 import { useRepos } from '../../api/queries/repos.ts';
@@ -23,10 +23,18 @@ const tabs: { key: FilterTab; label: string }[] = [
 function InboxPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>('needs_review');
   const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const filters = {
     filter: activeTab === 'all' ? undefined : activeTab,
     repo_id: selectedRepo || undefined,
+    search: searchQuery || undefined,
   };
 
   const { data, isLoading, error } = usePullRequests(filters);
@@ -42,18 +50,22 @@ function InboxPage() {
   // Fetch all PRs (unfiltered) for tab counts
   const { data: allData } = usePullRequests({
     repo_id: selectedRepo || undefined,
+    search: searchQuery || undefined,
   });
   const { data: needsReviewData } = usePullRequests({
     filter: 'needs_review',
     repo_id: selectedRepo || undefined,
+    search: searchQuery || undefined,
   });
   const { data: inProgressData } = usePullRequests({
     filter: 'in_progress',
     repo_id: selectedRepo || undefined,
+    search: searchQuery || undefined,
   });
   const { data: completedData } = usePullRequests({
     filter: 'completed',
     repo_id: selectedRepo || undefined,
+    search: searchQuery || undefined,
   });
 
   const counts: Record<FilterTab, number> = {
@@ -153,6 +165,14 @@ function InboxPage() {
         <h1 className="text-xl font-semibold">Inbox</h1>
 
         <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search PRs..."
+            className="bg-card border border-border rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-64"
+          />
+
           <Button
             variant="secondary"
             size="sm"

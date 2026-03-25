@@ -73,6 +73,7 @@ export interface PrFilters {
   status?: string;
   repo_id?: string;
   filter?: string;
+  search?: string;
 }
 
 export function usePullRequest(id: string) {
@@ -88,6 +89,7 @@ export function usePullRequests(filters?: PrFilters) {
   if (filters?.status) params.set('status', filters.status);
   if (filters?.repo_id) params.set('repo_id', filters.repo_id);
   if (filters?.filter) params.set('filter', filters.filter);
+  if (filters?.search) params.set('search', filters.search);
   const qs = params.toString();
 
   return useQuery({
