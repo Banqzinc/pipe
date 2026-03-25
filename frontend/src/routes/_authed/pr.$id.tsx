@@ -73,7 +73,7 @@ function PrDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="text-gray-500 text-sm">Loading pull request...</div>
+        <div className="text-muted-foreground text-sm">Loading pull request...</div>
       </div>
     );
   }
@@ -81,10 +81,10 @@ function PrDetailPage() {
   if (error || !pr) {
     return (
       <div className="p-6">
-        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Back to Inbox
         </Link>
-        <div className="mt-6 rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+        <div className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm">
           {error instanceof Error ? error.message : 'Failed to load pull request.'}
         </div>
       </div>
@@ -99,22 +99,22 @@ function PrDetailPage() {
   return (
     <div className="pb-20">
       {/* Top bar */}
-      <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-4 flex-wrap">
-        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+      <div className="px-6 py-4 border-b border-border flex items-center gap-4 flex-wrap">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Back
         </Link>
-        <span className="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+        <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
           {repoLabel}
         </span>
         <PrStatusBadge status={pr.status} />
 
         <div className="ml-auto flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={selfReview}
               onChange={(e) => setSelfReview(e.target.checked)}
-              className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+              className="rounded border-border bg-muted text-primary focus:ring-primary"
             />
             Self-review
           </label>
@@ -130,19 +130,19 @@ function PrDetailPage() {
       </div>
 
       {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-800">
-        <h1 className="text-xl font-semibold text-gray-100">
+      <div className="px-6 py-5 border-b border-border">
+        <h1 className="text-xl font-semibold text-foreground">
           #{pr.github_pr_number}{' '}
-          <span className="text-gray-200">{pr.title}</span>
+          <span className="text-foreground">{pr.title}</span>
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
+        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <span>
-            by <span className="text-gray-400">{pr.author}</span>
+            by <span className="text-foreground">{pr.author}</span>
           </span>
           <span>
-            <span className="font-mono text-gray-400">{pr.branch_name}</span>
-            <span className="mx-2 text-gray-600">&rarr;</span>
-            <span className="font-mono text-gray-400">{pr.base_branch}</span>
+            <span className="font-mono text-foreground">{pr.branch_name}</span>
+            <span className="mx-2 text-muted-foreground">&rarr;</span>
+            <span className="font-mono text-foreground">{pr.base_branch}</span>
           </span>
 
           {pr.linear_ticket_id && (
@@ -164,7 +164,7 @@ function PrDetailPage() {
               href={pr.notion_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-400 hover:text-gray-300"
+              className="text-muted-foreground hover:text-foreground"
             >
               Notion
             </a>
@@ -178,7 +178,7 @@ function PrDetailPage() {
         </div>
 
         {createRun.error && (
-          <p className="mt-2 text-sm text-red-400">
+          <p className="mt-2 text-sm text-destructive">
             {createRun.error instanceof Error
               ? createRun.error.message
               : 'Failed to start run.'}
@@ -188,17 +188,17 @@ function PrDetailPage() {
 
       {/* Stack context — vertical Graphite-style */}
       {pr.stack_id && stackPrs && stackPrs.length > 1 && (
-        <div className="border-b border-gray-800 bg-purple-500/5 mr-[360px]">
+        <div className="border-b border-border bg-purple-500/[0.03] mr-[360px]">
           <div className="px-6 py-4">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Stack</span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stack</span>
+              <span className="text-xs text-muted-foreground">
                 {pr.stack_position} of {pr.stack_size}
               </span>
             </div>
             <div className="relative pl-5">
               {/* Vertical connector line */}
-              <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-700" />
+              <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
               {/* PRs — highest position (top of stack) first */}
               {[...stackPrs].reverse().map((sibling) => {
                 const isCurrent = sibling.id === pr.id;
@@ -210,7 +210,7 @@ function PrDetailPage() {
                         className={`w-[9px] h-[9px] rounded-full border-2 ${
                           isCurrent
                             ? 'bg-purple-400 border-purple-400'
-                            : 'bg-gray-950 border-gray-600'
+                            : 'bg-background border-muted-foreground/40'
                         }`}
                       />
                     </div>
@@ -219,10 +219,10 @@ function PrDetailPage() {
                       className={`group flex items-center gap-2 py-0.5 text-xs transition-colors ${
                         isCurrent
                           ? 'text-purple-300'
-                          : 'text-gray-400 hover:text-gray-200'
+                          : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <span className="font-mono text-gray-500 group-hover:text-gray-400">
+                      <span className="font-mono text-muted-foreground group-hover:text-foreground">
                         #{sibling.github_pr_number}
                       </span>
                       <span className={`truncate max-w-md ${isCurrent ? 'font-medium' : ''}`}>
@@ -235,9 +235,9 @@ function PrDetailPage() {
               {/* Base branch (trunk) */}
               <div className="relative flex items-start gap-3">
                 <div className="absolute -left-5 top-1">
-                  <div className="w-[9px] h-[9px] rounded-full border-2 bg-gray-950 border-gray-600" />
+                  <div className="w-[9px] h-[9px] rounded-full border-2 bg-background border-muted-foreground/40" />
                 </div>
-                <span className="text-xs text-gray-600 py-0.5">
+                <span className="text-xs text-muted-foreground py-0.5">
                   {stackPrs[0]?.base_branch ?? 'base'}
                 </span>
               </div>
@@ -247,9 +247,9 @@ function PrDetailPage() {
       )}
 
       {/* Business context — collapsible inline */}
-      <div className="px-6 py-3 border-b border-gray-800">
+      <div className="px-6 py-3 border-b border-border">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context</span>
           <div className="flex-1 flex items-center gap-3">
             <input
               type="text"
@@ -261,7 +261,7 @@ function PrDetailPage() {
                 }
               }}
               placeholder="Linear ticket (e.g. CORE-558)"
-              className="bg-gray-900 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-200 font-mono focus:outline-none focus:border-blue-500 w-48"
+              className="bg-muted border border-border rounded-lg px-2.5 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-48"
             />
             <input
               type="text"
@@ -273,7 +273,7 @@ function PrDetailPage() {
                 }
               }}
               placeholder="Notion URL"
-              className="bg-gray-900 border border-gray-700 rounded px-2.5 py-1 text-xs text-gray-200 font-mono focus:outline-none focus:border-blue-500 flex-1 max-w-xs"
+              className="bg-muted border border-border rounded-lg px-2.5 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent flex-1 max-w-xs"
             />
           </div>
         </div>
@@ -284,7 +284,7 @@ function PrDetailPage() {
         {diffLoading ? (
           <div className="flex items-center gap-3 py-8 justify-center">
             <svg
-              className="animate-spin h-5 w-5 text-blue-400"
+              className="animate-spin h-5 w-5 text-primary"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -292,7 +292,7 @@ function PrDetailPage() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="text-gray-400 text-sm">Loading diff...</span>
+            <span className="text-muted-foreground text-sm">Loading diff...</span>
           </div>
         ) : diffData ? (
           <DiffViewer
@@ -310,11 +310,11 @@ function PrDetailPage() {
 
         {/* Run history — collapsible */}
         {sortedRuns.length > 0 && (
-          <div className="rounded-lg border border-gray-800">
+          <div className="rounded-lg border border-border">
             <button
               type="button"
               onClick={() => setRunsExpanded(!runsExpanded)}
-              className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-gray-200 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
             >
               <svg
                 className={`w-4 h-4 transition-transform ${runsExpanded ? 'rotate-90' : ''}`}
@@ -330,23 +330,23 @@ function PrDetailPage() {
             {runsExpanded && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-t border-gray-800 bg-gray-900/50">
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                  <tr className="border-t border-border bg-card/50">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       Status
                     </th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       SHA
                     </th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       Findings
                     </th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       Type
                     </th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       Started
                     </th>
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       Completed
                     </th>
                   </tr>
@@ -358,17 +358,17 @@ function PrDetailPage() {
                       onClick={() =>
                         void router.navigate({ to: `/run/${run.id}` as '/' })
                       }
-                      className={`cursor-pointer hover:bg-gray-800/60 transition-colors ${
-                        i < sortedRuns.length - 1 ? 'border-b border-gray-800/60' : ''
+                      className={`cursor-pointer hover:bg-muted/60 transition-colors ${
+                        i < sortedRuns.length - 1 ? 'border-b border-border' : ''
                       }`}
                     >
                       <td className="px-4 py-3">
                         <RunStatusBadge status={run.status} />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-400">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                         {run.head_sha.slice(0, 7)}
                       </td>
-                      <td className="px-4 py-3 text-gray-300">
+                      <td className="px-4 py-3 text-foreground">
                         {run.findings_count}
                       </td>
                       <td className="px-4 py-3">
@@ -377,15 +377,15 @@ function PrDetailPage() {
                             SELF
                           </span>
                         ) : (
-                          <span className="text-gray-600 text-xs">&mdash;</span>
+                          <span className="text-muted-foreground text-xs">&mdash;</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
                         {formatDateTime(run.created_at)}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
                         {run.completed_at ? formatDateTime(run.completed_at) : (
-                          <span className="text-gray-600">&mdash;</span>
+                          <span className="text-muted-foreground">&mdash;</span>
                         )}
                       </td>
                     </tr>
@@ -423,11 +423,11 @@ function PrDetailPage() {
 
 function RunStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    queued: 'bg-gray-500/20 text-gray-400',
-    running: 'bg-blue-500/20 text-blue-400',
-    completed: 'bg-green-500/20 text-green-400',
-    partial: 'bg-yellow-500/20 text-yellow-400',
-    failed: 'bg-red-500/20 text-red-400',
+    queued: 'bg-muted text-muted-foreground',
+    running: 'bg-primary/20 text-primary',
+    completed: 'bg-green-500/10 text-green-400',
+    partial: 'bg-yellow-500/10 text-yellow-400',
+    failed: 'bg-destructive/10 text-destructive',
   };
   const labels: Record<string, string> = {
     queued: 'Queued',
@@ -447,13 +447,13 @@ function RunStatusBadge({ status }: { status: string }) {
 
 function PrStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    open: 'bg-green-500/20 text-green-400',
-    closed: 'bg-gray-500/20 text-gray-400',
-    merged: 'bg-purple-500/20 text-purple-400',
+    open: 'bg-green-500/10 text-green-400',
+    closed: 'bg-muted text-muted-foreground',
+    merged: 'bg-purple-500/10 text-purple-400',
   };
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-gray-500/20 text-gray-400'}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-muted text-muted-foreground'}`}
     >
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>

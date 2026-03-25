@@ -344,7 +344,7 @@ function RunPage() {
   if (runLoading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="text-gray-500 text-sm">Loading run...</div>
+        <div className="text-muted-foreground text-sm">Loading run...</div>
       </div>
     );
   }
@@ -353,10 +353,10 @@ function RunPage() {
   if (runError || !run) {
     return (
       <div className="p-6">
-        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Back to Inbox
         </Link>
-        <div className="mt-6 rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+        <div className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm">
           {runError instanceof Error
             ? runError.message
             : 'Failed to load run.'}
@@ -372,15 +372,15 @@ function RunPage() {
   return (
     <div className="pb-20">
       {/* Top bar */}
-      <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-4 flex-wrap">
-        <Link to="/" className="text-sm text-gray-500 hover:text-gray-300">
+      <div className="px-6 py-4 border-b border-border flex items-center gap-4 flex-wrap">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Back
         </Link>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-xs font-mono text-gray-500">
+          <span className="text-xs font-mono text-muted-foreground">
             {repoLabel}
           </span>
-          <span className="text-gray-200 text-sm truncate">
+          <span className="text-foreground text-sm truncate">
             #{run.pr.github_pr_number} {run.pr.title}
           </span>
           {run.pr.stack_id &&
@@ -401,7 +401,7 @@ function RunPage() {
             </span>
           )}
           {run.pr.is_draft && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-500/20 text-gray-400">
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
               Draft
             </span>
           )}
@@ -425,15 +425,15 @@ function RunPage() {
 
       {/* Stack PRs listing */}
       {run.stack_id && run.stack_prs && run.stack_prs.length > 0 && (
-        <div className="px-6 py-3 border-b border-gray-800 bg-purple-500/5">
-          <div className="text-xs font-medium text-gray-500 mb-1">Stack PRs</div>
+        <div className="px-6 py-3 border-b border-border bg-purple-500/[0.03]">
+          <div className="text-xs font-medium text-muted-foreground mb-1">Stack PRs</div>
           <div className="flex flex-wrap gap-2">
             {run.stack_prs.map((sp) => (
               <span
                 key={sp.id}
-                className="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-800 rounded px-2 py-1"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted rounded px-2 py-1"
               >
-                <span className="font-mono text-gray-500">#{sp.github_pr_number}</span>
+                <span className="font-mono text-muted-foreground">#{sp.github_pr_number}</span>
                 <span className="truncate max-w-48">{sp.title}</span>
               </span>
             ))}
@@ -456,19 +456,19 @@ function RunPage() {
           <div className="space-y-6">
             <div className="flex items-center gap-3 py-4">
               <Spinner />
-              <span className="text-gray-400 text-sm">
+              <span className="text-muted-foreground text-sm">
                 {stream.phaseMessage ?? 'Review in progress...'}
               </span>
             </div>
 
             {liveOutput && (
-              <div className="rounded-lg border border-gray-800 bg-gray-950 overflow-hidden">
-                <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500 font-medium">
+              <div className="rounded-lg border border-border bg-background overflow-hidden">
+                <div className="px-4 py-2 border-b border-border text-xs text-muted-foreground font-medium">
                   Live Output
                 </div>
                 <pre
                   ref={cliOutputRef}
-                  className="px-4 py-3 text-xs text-gray-400 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                  className="px-4 py-3 text-xs text-muted-foreground font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 >
                   {liveOutput}
                 </pre>
@@ -483,10 +483,10 @@ function RunPage() {
 
         {/* Failed state */}
         {isFailed && (
-          <div className="rounded-lg border border-red-800 bg-red-500/10 p-4 text-red-400 text-sm">
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm">
             <p className="font-medium">Review failed</p>
             {run.error_message && (
-              <p className="mt-1 text-red-400/80">{run.error_message}</p>
+              <p className="mt-1 text-destructive/80">{run.error_message}</p>
             )}
           </div>
         )}
@@ -497,17 +497,17 @@ function RunPage() {
             {findingsData === undefined && (
               <div className="flex items-center gap-3 py-4">
                 <Spinner />
-                <span className="text-gray-400 text-sm">Loading findings...</span>
+                <span className="text-muted-foreground text-sm">Loading findings...</span>
               </div>
             )}
 
             {/* Raw Output */}
             {run.cli_output && (
-              <div className="rounded-lg border border-gray-800">
+              <div className="rounded-lg border border-border">
                 <button
                   type="button"
                   onClick={() => setRawOutputExpanded(!rawOutputExpanded)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-gray-200 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
                 >
                   <svg
                     className={`w-4 h-4 transition-transform ${rawOutputExpanded ? 'rotate-90' : ''}`}
@@ -521,7 +521,7 @@ function RunPage() {
                   Raw Output
                 </button>
                 {rawOutputExpanded && (
-                  <pre className="px-4 pb-4 text-xs text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                  <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
                     {run.cli_output}
                   </pre>
                 )}
@@ -530,11 +530,11 @@ function RunPage() {
 
             {/* View Prompt */}
             {run.prompt && (
-              <div className="rounded-lg border border-gray-800">
+              <div className="rounded-lg border border-border">
                 <button
                   type="button"
                   onClick={() => setPromptExpanded(!promptExpanded)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-gray-200 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
                 >
                   <svg
                     className={`w-4 h-4 transition-transform ${promptExpanded ? 'rotate-90' : ''}`}
@@ -548,7 +548,7 @@ function RunPage() {
                   View Prompt
                 </button>
                 {promptExpanded && (
-                  <pre className="px-4 pb-4 text-xs text-gray-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                  <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
                     {run.prompt}
                   </pre>
                 )}
@@ -556,14 +556,14 @@ function RunPage() {
             )}
 
             {/* View toggle */}
-            <div className="flex items-center gap-1 border border-gray-800 rounded-lg p-0.5 w-fit">
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
               <button
                 type="button"
                 onClick={() => setViewMode('findings')}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
                   viewMode === 'findings'
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'text-gray-500 hover:text-gray-300'
+                    ? 'bg-card text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Findings ({counts.total})
@@ -573,8 +573,8 @@ function RunPage() {
                 onClick={() => setViewMode('diff')}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
                   viewMode === 'diff'
-                    ? 'bg-gray-700 text-gray-200'
-                    : 'text-gray-500 hover:text-gray-300'
+                    ? 'bg-card text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Diff
@@ -585,43 +585,43 @@ function RunPage() {
               <>
                 {/* Keyboard shortcuts help */}
                 {!isReadOnly && sortedFindings.length > 0 && (
-                  <div className="text-xs text-gray-600 flex flex-wrap gap-3">
+                  <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         j
                       </kbd>
                       /
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         k
                       </kbd>{' '}
                       navigate
                     </span>
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         a
                       </kbd>{' '}
                       accept
                     </span>
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         r
                       </kbd>{' '}
                       reject
                     </span>
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         e
                       </kbd>{' '}
                       edit
                     </span>
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         Shift+R
                       </kbd>{' '}
                       reject nitpicks
                     </span>
                     <span>
-                      <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                      <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
                         Shift+P
                       </kbd>{' '}
                       post/export
@@ -667,7 +667,7 @@ function RunPage() {
               ) : (
                 <div className="flex items-center gap-3 py-4">
                   <Spinner />
-                  <span className="text-gray-400 text-sm">Loading diff...</span>
+                  <span className="text-muted-foreground text-sm">Loading diff...</span>
                 </div>
               )
             )}
@@ -724,11 +724,11 @@ function RunPage() {
 
 function RunStatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    queued: 'bg-gray-500/20 text-gray-400',
-    running: 'bg-blue-500/20 text-blue-400',
-    completed: 'bg-green-500/20 text-green-400',
-    partial: 'bg-yellow-500/20 text-yellow-400',
-    failed: 'bg-red-500/20 text-red-400',
+    queued: 'bg-muted text-muted-foreground',
+    running: 'bg-primary/20 text-primary',
+    completed: 'bg-green-500/10 text-green-400',
+    partial: 'bg-yellow-500/10 text-yellow-400',
+    failed: 'bg-destructive/10 text-destructive',
   };
 
   const labels: Record<string, string> = {
@@ -751,7 +751,7 @@ function RunStatusBadge({ status }: { status: string }) {
 function Spinner() {
   return (
     <svg
-      className="animate-spin h-5 w-5 text-blue-400"
+      className="animate-spin h-5 w-5 text-primary"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

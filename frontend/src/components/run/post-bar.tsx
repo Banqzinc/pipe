@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button.tsx';
 import type { FindingsCounts } from '../../api/queries/findings.ts';
 
 interface PostBarProps {
@@ -37,15 +38,15 @@ export function PostBar({
   const actionDisabled = isStale || hasPost || isPosting;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 border-t border-gray-800 backdrop-blur-sm z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-card/95 border-t border-border backdrop-blur-sm z-50">
       {/* Error banner */}
       {postError && (
-        <div className="bg-red-900/80 border-b border-red-700 px-4 py-2 flex items-center justify-between text-sm text-red-200">
+        <div className="bg-destructive/20 border-b border-destructive/30 px-4 py-2 flex items-center justify-between text-sm text-destructive">
           <span>{postError}</span>
           <button
             type="button"
             onClick={onDismissError}
-            className="ml-4 text-red-300 hover:text-red-100 transition-colors"
+            className="ml-4 text-destructive hover:text-destructive/80 transition-colors"
             aria-label="Dismiss error"
           >
             &times;
@@ -64,17 +65,17 @@ export function PostBar({
           <span className="text-green-400 tabular-nums">
             {acceptedCount} accepted
           </span>
-          <span className="text-gray-400">-</span>
-          <span className="text-gray-400 tabular-nums">
+          <span className="text-muted-foreground">-</span>
+          <span className="text-muted-foreground tabular-nums">
             {counts.rejected} rejected
           </span>
-          <span className="text-gray-400">-</span>
-          <span className="text-gray-300 tabular-nums">
+          <span className="text-muted-foreground">-</span>
+          <span className="text-foreground tabular-nums">
             {counts.pending} pending
           </span>
           {counts.posted > 0 && (
             <>
-              <span className="text-gray-400">-</span>
+              <span className="text-muted-foreground">-</span>
               <span className="text-green-400 tabular-nums">
                 {counts.posted} posted
               </span>
@@ -97,41 +98,40 @@ export function PostBar({
             </span>
           ) : (
             <>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={onRejectNitpicks}
                 disabled={actionDisabled}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Reject Nitpicks
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                size="sm"
                 onClick={isSelfReview ? onExport : onPost}
                 disabled={actionDisabled}
-                className="px-4 py-1.5 text-sm font-medium rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
               >
                 {isPosting
                   ? 'Posting...'
                   : isSelfReview
                     ? 'Export Findings'
                     : 'Post to GitHub'}
-              </button>
+              </Button>
             </>
           )}
           {onApprove && !isSelfReview && (
-            <button
-              type="button"
+            <Button
+              size="sm"
               onClick={onApprove}
               disabled={isStale || isApproving || isApproved}
-              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+              className={
                 isApproved
-                  ? 'bg-green-600/20 text-green-400 cursor-default'
-                  : 'bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white'
-              }`}
+                  ? 'bg-green-600/20 text-green-400 cursor-default hover:bg-green-600/20'
+                  : 'bg-green-600 hover:bg-green-500 text-white'
+              }
             >
               {isApproving ? 'Approving...' : isApproved ? 'Approved' : 'Approve PR'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
