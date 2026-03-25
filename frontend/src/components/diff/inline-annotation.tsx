@@ -22,7 +22,7 @@ const statusBadges: Record<string, { label: string; cls: string }> = {
 function Chevron({ expanded }: { expanded: boolean }) {
   return (
     <svg
-      className={`w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+      className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -99,16 +99,16 @@ export function InlineAnnotation({
           return (
             <div
               key={f.id}
-              className={`border-l-4 ${borderColor} bg-gray-900 rounded-r overflow-hidden ${isRejected ? 'opacity-40' : ''}`}
+              className={`border-l-4 ${borderColor} bg-card rounded-r overflow-hidden ${isRejected ? 'opacity-40' : ''}`}
             >
               <button
                 type="button"
                 onClick={() => toggle(i)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-800/50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
               >
                 <Chevron expanded={expanded} />
                 <SeverityBadge severity={f.severity} />
-                <span className="text-xs font-medium text-gray-200 truncate flex-1">
+                <span className="text-xs font-medium text-foreground truncate flex-1">
                   {f.title}
                 </span>
                 {badge && !isPending && (
@@ -130,7 +130,7 @@ export function InlineAnnotation({
                     />
                   ) : (
                     <>
-                      <div className="prose prose-sm prose-invert max-w-none text-gray-300 text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
+                      <div className="prose prose-sm prose-invert max-w-none text-muted-foreground text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {f.edited_body ?? f.body}
                         </ReactMarkdown>
@@ -147,14 +147,14 @@ export function InlineAnnotation({
                           <button
                             type="button"
                             onClick={() => onReject?.(f.id)}
-                            className="px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                            className="px-2 py-0.5 text-xs font-medium rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                           >
                             Reject
                           </button>
                           <button
                             type="button"
                             onClick={() => onStartEdit?.(f.id)}
-                            className="px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                            className="px-2 py-0.5 text-xs font-medium rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                           >
                             Edit
                           </button>
@@ -173,16 +173,16 @@ export function InlineAnnotation({
           return (
             <div
               key={`comment-${t.root_comment_id}-${i}`}
-              className={`border-l-4 border-l-gray-600 bg-gray-900 rounded-r overflow-hidden ${t.is_resolved ? 'opacity-40' : ''}`}
+              className={`border-l-4 border-l-gray-600 bg-card rounded-r overflow-hidden ${t.is_resolved ? 'opacity-40' : ''}`}
             >
               <button
                 type="button"
                 onClick={() => toggle(i)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-800/50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
               >
                 <Chevron expanded={expanded} />
-                <span className="text-xs font-medium text-gray-400">@{t.root_user}</span>
-                <span className="text-xs text-gray-500 truncate flex-1">
+                <span className="text-xs font-medium text-muted-foreground">@{t.root_user}</span>
+                <span className="text-xs text-muted-foreground truncate flex-1">
                   {truncate(t.root_body, 60)}
                 </span>
                 {t.thread_node_id && (
@@ -195,7 +195,7 @@ export function InlineAnnotation({
                     className={`ml-auto shrink-0 text-xs px-1.5 py-0.5 rounded ${
                       t.is_resolved
                         ? 'text-green-400 bg-green-500/20 hover:bg-green-500/30'
-                        : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
                     {t.is_resolved ? '\u2713 Resolved' : 'Resolve'}
@@ -204,30 +204,30 @@ export function InlineAnnotation({
               </button>
               {expanded && (
                 <div data-expanded className="px-3 pb-3 overflow-x-hidden break-words">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                    <span className="font-medium text-gray-400">@{t.root_user}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                    <span className="font-medium text-muted-foreground">@{t.root_user}</span>
                     <a
                       href={t.root_html_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-gray-300 transition-colors"
+                      className="hover:text-foreground transition-colors"
                     >
                       comment
                     </a>
                   </div>
-                  <div className="prose prose-sm prose-invert max-w-none text-gray-400 text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
+                  <div className="prose prose-sm prose-invert max-w-none text-muted-foreground text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {t.root_body}
                     </ReactMarkdown>
                   </div>
                   {t.replies.length > 0 && (
-                    <div className="mt-2 space-y-1 ml-3 pl-3 border-l-2 border-gray-700">
+                    <div className="mt-2 space-y-1 ml-3 pl-3 border-l-2 border-border">
                       {t.replies.map((r) => (
                         <div key={r.id}>
-                          <span className="text-xs text-gray-500">
-                            <span className="font-medium text-gray-400">@{r.user}</span>
+                          <span className="text-xs text-muted-foreground">
+                            <span className="font-medium text-muted-foreground">@{r.user}</span>
                           </span>
-                          <div className="prose prose-sm prose-invert max-w-none text-gray-400 text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
+                          <div className="prose prose-sm prose-invert max-w-none text-muted-foreground text-xs [&_pre]:whitespace-pre-wrap [&_pre]:overflow-x-hidden [&_code]:break-all">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {r.body}
                             </ReactMarkdown>
@@ -237,7 +237,7 @@ export function InlineAnnotation({
                     </div>
                   )}
                   {!t.is_resolved && (
-                    <div className="mt-2 pt-2 border-t border-gray-800">
+                    <div className="mt-2 pt-2 border-t border-border">
                       {replyingTo === t.root_comment_id ? (
                         <div className="space-y-2">
                           <textarea
@@ -259,7 +259,7 @@ export function InlineAnnotation({
                               }
                             }}
                             rows={3}
-                            className="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 resize-y"
+                            className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary resize-y"
                             placeholder="Write a reply..."
                             autoFocus
                           />
@@ -274,7 +274,7 @@ export function InlineAnnotation({
                                 setReplyBody('');
                               }}
                               disabled={!replyBody.trim()}
-                              className="px-2 py-0.5 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
+                              className="px-2 py-0.5 text-xs font-medium rounded bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 transition-colors"
                             >
                               Reply
                             </button>
@@ -284,18 +284,18 @@ export function InlineAnnotation({
                                 setReplyingTo(null);
                                 setReplyBody('');
                               }}
-                              className="px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                              className="px-2 py-0.5 text-xs font-medium rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                             >
                               Cancel
                             </button>
-                            <span className="text-xs text-gray-600 ml-1">Cmd+Enter to send</span>
+                            <span className="text-xs text-muted-foreground ml-1">Cmd+Enter to send</span>
                           </div>
                         </div>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setReplyingTo(t.root_comment_id)}
-                          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                         >
                           Reply
                         </button>

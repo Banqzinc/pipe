@@ -48,7 +48,7 @@ export function DiffViewer({
 
   if (files.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 text-sm">
+      <div className="text-center py-8 text-muted-foreground text-sm">
         No files changed in this PR.
       </div>
     );
@@ -60,7 +60,7 @@ export function DiffViewer({
   return (
     <div className="space-y-4 mr-[360px]">
       {/* Summary bar */}
-      <div className="flex items-center gap-3 text-xs text-gray-400">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>{files.length} file{files.length !== 1 ? 's' : ''} changed</span>
         {totalAdditions > 0 && (
           <span className="text-green-400">+{totalAdditions}</span>
@@ -71,7 +71,7 @@ export function DiffViewer({
         <button
           type="button"
           onClick={() => setAllCollapsed(!allCollapsed)}
-          className="ml-auto text-gray-500 hover:text-gray-300 transition-colors"
+          className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
         >
           {allCollapsed ? 'Expand all' : 'Collapse all'}
         </button>

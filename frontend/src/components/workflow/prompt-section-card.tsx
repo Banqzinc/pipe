@@ -12,8 +12,8 @@ export function PromptSectionCard({ section, onChange }: PromptSectionCardProps)
   return (
     <div className={`border rounded-lg transition-colors ${
       section.enabled
-        ? 'border-white/[0.08] bg-white/[0.02]'
-        : 'border-white/[0.04] bg-white/[0.01] opacity-60'
+        ? 'border-border bg-card'
+        : 'border-border/50 bg-card/50 opacity-60'
     }`}>
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Toggle */}
@@ -21,7 +21,7 @@ export function PromptSectionCard({ section, onChange }: PromptSectionCardProps)
           type="button"
           onClick={() => onChange(section.key, { enabled: !section.enabled })}
           className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors ${
-            section.enabled ? 'bg-blue-600' : 'bg-gray-700'
+            section.enabled ? 'bg-primary' : 'bg-secondary'
           }`}
         >
           <span
@@ -33,13 +33,13 @@ export function PromptSectionCard({ section, onChange }: PromptSectionCardProps)
 
         {/* Name + description */}
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-gray-300">{section.name}</div>
-          <div className="text-xs text-gray-500 mt-0.5">{section.description}</div>
+          <div className="text-sm font-medium text-foreground">{section.name}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{section.description}</div>
         </div>
 
         {/* System badge */}
         {section.system && (
-          <span className="text-xs text-gray-600 italic whitespace-nowrap">
+          <span className="text-xs text-muted-foreground italic whitespace-nowrap">
             auto-generated
           </span>
         )}
@@ -49,7 +49,7 @@ export function PromptSectionCard({ section, onChange }: PromptSectionCardProps)
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <svg
               className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -71,7 +71,7 @@ export function PromptSectionCard({ section, onChange }: PromptSectionCardProps)
             value={section.content}
             onChange={(e) => onChange(section.key, { content: e.target.value })}
             rows={8}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 font-mono focus:outline-none focus:border-blue-500 resize-y"
+            className="w-full bg-muted border border-border rounded-lg px-4 py-3 text-sm text-foreground font-mono focus:outline-none focus:border-primary resize-y"
           />
         </div>
       )}

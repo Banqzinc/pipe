@@ -47,15 +47,15 @@ export function DiffFileSection({
   const hunks = file.patch ? parsePatch(file.patch) : null;
 
   return (
-    <div className="rounded-lg border border-gray-800">
+    <div className="rounded-lg border border-border">
       {/* Sticky file header */}
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="sticky top-0 z-10 w-full flex items-center gap-3 px-4 py-2 bg-gray-900 rounded-t-lg border-b border-gray-800 text-left hover:bg-gray-800/50 transition-colors"
+        className="sticky top-0 z-10 w-full flex items-center gap-3 px-4 py-2 bg-card rounded-t-lg border-b border-border text-left hover:bg-muted/50 transition-colors"
       >
         <svg
-          className={`w-4 h-4 text-gray-500 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          className={`w-4 h-4 text-muted-foreground transition-transform ${collapsed ? '' : 'rotate-90'}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -63,10 +63,10 @@ export function DiffFileSection({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        <span className="text-sm font-mono text-gray-200 truncate flex-1">
+        <span className="text-sm font-mono text-foreground truncate flex-1">
           {file.filename}
         </span>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {statusLabels[file.status] ?? file.status}
         </span>
         {file.additions > 0 && (
@@ -80,7 +80,7 @@ export function DiffFileSection({
       {!collapsed && (
         <div>
           {hunks === null ? (
-            <div className="px-4 py-6 text-center text-sm text-gray-500">
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               Diff too large to display
             </div>
           ) : (

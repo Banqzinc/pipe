@@ -10,7 +10,7 @@ const bgColors: Record<DiffLineType['type'], string> = {
 const textColors: Record<DiffLineType['type'], string> = {
   added: 'text-green-300',
   removed: 'text-red-300',
-  context: 'text-gray-300',
+  context: 'text-muted-foreground',
   'hunk-header': 'text-blue-400',
 };
 
@@ -31,14 +31,14 @@ export function DiffLine({ line, highlighted }: DiffLineProps) {
   const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
 
   return (
-    <div className={`${highlighted ? 'bg-blue-500/10' : bgColors[line.type]} flex font-mono text-xs leading-5 hover:brightness-125`}>
-      <span className="w-12 shrink-0 text-right pr-2 text-gray-600 select-none border-r border-gray-800">
+    <div className={`${highlighted ? 'bg-blue-500/10' : bgColors[line.type]} flex font-mono text-xs leading-5 hover:bg-white/[0.02]`}>
+      <span className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border">
         {line.oldLineNumber ?? ''}
       </span>
-      <span className="w-12 shrink-0 text-right pr-2 text-gray-600 select-none border-r border-gray-800">
+      <span className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border">
         {line.newLineNumber ?? ''}
       </span>
-      <span className="w-5 shrink-0 text-center text-gray-600 select-none">
+      <span className="w-5 shrink-0 text-center text-muted-foreground select-none">
         {prefix}
       </span>
       <span className={`flex-1 pr-4 ${textColors[line.type]} whitespace-pre overflow-x-auto`}>

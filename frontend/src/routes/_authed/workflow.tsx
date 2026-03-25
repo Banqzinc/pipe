@@ -4,6 +4,7 @@ import { usePromptTemplate } from '../../api/queries/workflow.ts';
 import type { PromptSection } from '../../api/queries/workflow.ts';
 import { useUpdatePromptTemplate } from '../../api/mutations/workflow.ts';
 import { PromptSectionCard } from '../../components/workflow/prompt-section-card.tsx';
+import { Button } from '@/components/ui/button.tsx';
 
 const DEFAULT_SECTIONS: PromptSection[] = [
   {
@@ -156,7 +157,7 @@ function WorkflowPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="text-gray-500 text-sm">Loading template...</div>
+        <div className="text-muted-foreground text-sm">Loading template...</div>
       </div>
     );
   }
@@ -165,16 +166,12 @@ function WorkflowPage() {
     <div className="p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-xl font-semibold">Workflow</h1>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-        >
+        <Button variant="ghost" size="sm" onClick={handleReset}>
           Reset to Default
-        </button>
+        </Button>
       </div>
 
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-muted-foreground mb-6">
         Configure which sections are included in the review prompt. Toggle sections on/off and edit the content of editable sections.
       </p>
 
@@ -189,14 +186,9 @@ function WorkflowPage() {
       </div>
 
       <div className="flex items-center gap-3 mt-6">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={updateTemplate.isPending}
-          className="px-4 py-1.5 text-sm font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
-        >
+        <Button onClick={handleSave} disabled={updateTemplate.isPending}>
           {updateTemplate.isPending ? 'Saving...' : 'Save'}
-        </button>
+        </Button>
         {saved && (
           <span className="text-xs text-green-400">Saved</span>
         )}
