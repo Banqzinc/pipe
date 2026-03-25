@@ -238,7 +238,7 @@ export class GitHubClient {
   async replyToComment(
     owner: string,
     repo: string,
-    pullNumber: number,
+    _pullNumber: number,
     commentId: number,
     body: string
   ): Promise<GitHubReviewComment> {
