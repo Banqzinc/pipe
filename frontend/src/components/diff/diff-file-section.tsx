@@ -99,7 +99,7 @@ export function DiffFileSection({
                     <div key={`${hi}-${li}`} className="relative">
                       <DiffLine line={line} highlighted={!!hasAnnotations} />
                       {hasAnnotations && (
-                        <div className="absolute top-0 left-full w-[340px] z-20 ml-3 overflow-hidden">
+                        <div className="absolute top-0 left-full w-[340px] z-20 ml-3 overflow-x-hidden [&:has(textarea)]:z-30">
                           <InlineAnnotation
                             annotations={lineAnnotations}
                             onAccept={onAccept}
