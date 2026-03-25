@@ -236,7 +236,7 @@ export function InlineAnnotation({
                       ))}
                     </div>
                   )}
-                  {expanded && !t.is_resolved && (
+                  {!t.is_resolved && (
                     <div className="mt-2 pt-2 border-t border-gray-800">
                       {replyingTo === t.root_comment_id ? (
                         <div className="space-y-2">

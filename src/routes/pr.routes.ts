@@ -378,6 +378,8 @@ router.post(
       };
       if (!threadNodeId)
         throw new AppError('threadNodeId is required', 400, 'VALIDATION_ERROR');
+      if (typeof resolved !== 'boolean')
+        throw new AppError('resolved must be a boolean', 400, 'VALIDATION_ERROR');
 
       const pat = decrypt(pr.repo.pat_token_encrypted);
       const client = new GitHubClient(pat);
