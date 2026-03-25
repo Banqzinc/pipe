@@ -303,6 +303,11 @@ function PrDetailPage() {
             onAccept={() => {}}
             onReject={() => {}}
             onStartEdit={() => {}}
+            editingId={null}
+            editBody=""
+            onEditBodyChange={() => {}}
+            onEditSave={() => {}}
+            onEditCancel={() => {}}
             onReplyToComment={handleReplyToComment}
             onResolveThread={handleResolveThread}
           />
