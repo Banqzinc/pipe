@@ -11,6 +11,8 @@ import {
 export interface CommentThread {
   rootComment: GitHubReviewComment;
   replies: GitHubReviewComment[];
+  threadNodeId?: string;
+  isResolved?: boolean;
 }
 
 export interface PRCommentContext {
@@ -30,9 +32,16 @@ export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext
   const name = repo.github_name;
   const prNumber = pr.github_pr_number;
 
-  const [reviewComments, issueComments] = await Promise.all([
+  const [reviewComments, issueComments, reviewThreads] = await Promise.all([
     client.getPRReviewComments(owner, name, prNumber),
     client.getPRIssueComments(owner, name, prNumber),
+    client.getPRReviewThreads(owner, name, prNumber).catch((err) => {
+      logger.warn(
+        { prId: pr.id, err },
+        'Failed to fetch review threads via GraphQL, resolve will be unavailable',
+      );
+      return [];
+    }),
   ]);
 
   logger.info(
@@ -65,6 +74,18 @@ export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext
     thread.replies.sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
+  }
+
+  // Merge GraphQL thread resolution data
+  const threadLookup = new Map(
+    reviewThreads.map((t) => [t.rootCommentDatabaseId, t]),
+  );
+  for (const [rootId, thread] of rootMap) {
+    const meta = threadLookup.get(rootId);
+    if (meta) {
+      thread.threadNodeId = meta.nodeId;
+      thread.isResolved = meta.isResolved;
+    }
   }
 
   return {
