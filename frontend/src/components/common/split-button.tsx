@@ -15,7 +15,7 @@ interface SplitButtonProps {
 
 export function SplitButton({ label, onClick, disabled, menuItems }: SplitButtonProps) {
   return (
-    <div className="relative inline-flex">
+    <div className="relative inline-flex items-stretch">
       <Button
         size="sm"
         className="rounded-r-none"
@@ -29,17 +29,11 @@ export function SplitButton({ label, onClick, disabled, menuItems }: SplitButton
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="inline-flex items-center justify-center rounded-l-none rounded-r-lg border-l border-primary-foreground/20 bg-primary px-1.5 py-1.5 text-primary-foreground hover:bg-primary/80 disabled:pointer-events-none disabled:opacity-50 transition-colors"
+          className="flex items-center justify-center rounded-l-none rounded-r-[min(var(--radius-md),12px)] border border-transparent border-l-primary-foreground/20 bg-primary bg-clip-padding px-1.5 text-primary-foreground hover:bg-primary/80 disabled:pointer-events-none disabled:opacity-50 transition-colors"
           disabled={disabled}
           onClick={(e) => e.stopPropagation()}
         >
-          <svg
-            className="w-3 h-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={3}
-          >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </DropdownMenuTrigger>
