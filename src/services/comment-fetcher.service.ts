@@ -18,6 +18,8 @@ export interface CommentThread {
 export interface PRCommentContext {
   threads: CommentThread[];
   issueComments: GitHubIssueComment[];
+  threadCount: number;
+  resolvedCount: number;
 }
 
 export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext> {
@@ -88,9 +90,25 @@ export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext
     }
   }
 
+  const threads = [...rootMap.values()];
+
+  // Update PR comment counts so the inbox shows accurate numbers
+  const resolvedCount = threads.filter((t) => t.isResolved).length;
+  try {
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    await prRepo.update(pr.id, {
+      github_comments: issueComments.length,
+      github_review_comments: reviewComments.length,
+    });
+  } catch (err) {
+    logger.warn({ prId: pr.id, err }, 'Failed to update PR comment counts');
+  }
+
   return {
-    threads: [...rootMap.values()],
+    threads,
     issueComments,
+    threadCount: threads.length,
+    resolvedCount,
   };
 }
 
