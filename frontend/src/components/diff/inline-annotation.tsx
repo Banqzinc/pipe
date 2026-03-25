@@ -120,7 +120,7 @@ export function InlineAnnotation({
                 )}
               </button>
               {(expanded || isEditing) && (
-                <div className="px-3 pb-3 overflow-x-hidden break-words">
+                <div data-expanded className="px-3 pb-3 overflow-x-hidden break-words">
                   {isEditing && editBody != null && onEditBodyChange && onEditSave && onEditCancel ? (
                     <FindingEditor
                       body={editBody}
@@ -203,7 +203,7 @@ export function InlineAnnotation({
                 )}
               </button>
               {expanded && (
-                <div className="px-3 pb-3 overflow-x-hidden break-words">
+                <div data-expanded className="px-3 pb-3 overflow-x-hidden break-words">
                   <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                     <span className="font-medium text-gray-400">@{t.root_user}</span>
                     <a
