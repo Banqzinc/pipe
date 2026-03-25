@@ -238,12 +238,12 @@ export class GitHubClient {
   async replyToComment(
     owner: string,
     repo: string,
-    _pullNumber: number,
+    pullNumber: number,
     commentId: number,
     body: string
   ): Promise<GitHubReviewComment> {
     return this.request<GitHubReviewComment>(
-      `/repos/${owner}/${repo}/pulls/comments/${commentId}/replies`,
+      `/repos/${owner}/${repo}/pulls/${pullNumber}/comments/${commentId}/replies`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
