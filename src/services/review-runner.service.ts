@@ -351,6 +351,7 @@ export class ReviewRunner {
       let lastFlushedLength = 0;
       let lineBuffer = '';
       let sessionId: string | null = null;
+      let lineCount = 0;
 
       // Flush accumulated display text to DB every 5 seconds
       const flushInterval = setInterval(() => {
@@ -389,12 +390,23 @@ export class ReviewRunner {
 
         for (const line of lines) {
           if (!line.trim()) continue;
+          lineCount++;
+          if (lineCount <= 3) {
+            logger.info({ runId, lineNum: lineCount, line: line.slice(0, 200) }, 'CLI stream line');
+          }
           try {
             const event = JSON.parse(line);
 
             // Extract session_id from early system events
-            if (!sessionId && event.session_id) {
-              sessionId = event.session_id;
+            if (!sessionId) {
+              // Check top-level and nested locations
+              const sid = event.session_id ?? event.sessionId;
+              if (sid) {
+                sessionId = sid;
+                logger.info({ runId, sessionId }, 'Captured session_id from CLI stream');
+              } else if (event.type === 'system' || event.type === 'init') {
+                logger.info({ runId, eventType: event.type, eventKeys: Object.keys(event) }, 'System event without session_id');
+              }
             }
 
             const content = extractStreamContent(event);

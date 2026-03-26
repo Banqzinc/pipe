@@ -404,8 +404,13 @@ router.post(
         'Read,Grep,Glob,LS',
       ];
 
+      logger.info({ runId: run.id, sessionId: run.session_id, args }, 'Spawning chat CLI');
       const child = spawn('claude', args, { cwd: process.cwd() });
       let responseText = '';
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        logger.warn({ runId: run.id, stderr: chunk.toString() }, 'Chat CLI stderr');
+      });
 
       child.stdout.on('data', (chunk: Buffer) => {
         const lines = chunk.toString().split('\n').filter(Boolean);
@@ -423,7 +428,8 @@ router.post(
         }
       });
 
-      child.on('close', async () => {
+      child.on('close', async (code) => {
+        logger.info({ runId: run.id, exitCode: code, responseLen: responseText.length }, 'Chat CLI closed');
         // Save assistant message
         if (responseText.trim()) {
           const assistantMsg = msgRepo.create({
