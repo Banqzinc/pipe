@@ -18,6 +18,8 @@ export interface CommentThread {
   root_created_at: string;
   root_html_url: string;
   replies: CommentReply[];
+  thread_node_id: string | null;
+  is_resolved: boolean;
 }
 
 export interface PRCommentsResponse {

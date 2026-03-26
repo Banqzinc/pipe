@@ -21,6 +21,7 @@ const FindingSchema = z.object({
   body: z.string(),
   suggested_fix: z.string().nullable().default(null),
   rule_ref: z.string().nullable().default(null),
+  pr_number: z.number().nullable().default(null),
 });
 
 const ToolkitOutputSchema = z.object({

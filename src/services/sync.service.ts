@@ -53,6 +53,8 @@ export class SyncService {
           is_draft: ghPr.draft,
           github_updated_at: new Date(ghPr.updated_at),
           linear_ticket_id: linearTicket,
+          github_comments: ghPr.comments ?? 0,
+          github_review_comments: ghPr.review_comments ?? 0,
         },
         {
           conflictPaths: ['repo_id', 'github_pr_number'],
@@ -108,6 +110,25 @@ export class SyncService {
         { status: PrStatus.Closed },
       );
     }
+
+    // 6. Fetch per-PR comment counts (the list endpoint returns 0)
+    const countUpdates = openPRs.map(async (ghPr) => {
+      try {
+        const detail = await client.getPR(repo.github_owner, repo.github_name, ghPr.number);
+        if (detail.comments > 0 || detail.review_comments > 0) {
+          await prRepo.update(
+            { repo_id: repoId, github_pr_number: ghPr.number },
+            {
+              github_comments: detail.comments,
+              github_review_comments: detail.review_comments,
+            },
+          );
+        }
+      } catch (err) {
+        logger.warn({ prNumber: ghPr.number, err }, 'Failed to fetch PR comment counts');
+      }
+    });
+    await Promise.allSettled(countUpdates);
 
     logger.info(
       { repoId, synced: openPRs.length },

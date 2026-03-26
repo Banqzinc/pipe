@@ -63,7 +63,7 @@ router.get(
         });
       }
 
-      const findings = await qb.getMany();
+      const findings = await qb.leftJoinAndSelect('finding.pullRequest', 'pr').getMany();
 
       // Get unfiltered counts for the run
       const allFindings = await findingRepo
@@ -97,6 +97,8 @@ router.get(
           status: f.status,
           edited_body: f.edited_body,
           toolkit_order: f.toolkit_order,
+          pr_id: f.pr_id,
+          pr_number: f.pullRequest?.github_pr_number ?? null,
         })),
         counts,
       });

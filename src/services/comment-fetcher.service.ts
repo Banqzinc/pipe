@@ -11,11 +11,15 @@ import {
 export interface CommentThread {
   rootComment: GitHubReviewComment;
   replies: GitHubReviewComment[];
+  threadNodeId?: string;
+  isResolved?: boolean;
 }
 
 export interface PRCommentContext {
   threads: CommentThread[];
   issueComments: GitHubIssueComment[];
+  threadCount: number;
+  resolvedCount: number;
 }
 
 export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext> {
@@ -30,9 +34,16 @@ export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext
   const name = repo.github_name;
   const prNumber = pr.github_pr_number;
 
-  const [reviewComments, issueComments] = await Promise.all([
+  const [reviewComments, issueComments, reviewThreads] = await Promise.all([
     client.getPRReviewComments(owner, name, prNumber),
     client.getPRIssueComments(owner, name, prNumber),
+    client.getPRReviewThreads(owner, name, prNumber).catch((err) => {
+      logger.warn(
+        { prId: pr.id, err },
+        'Failed to fetch review threads via GraphQL, resolve will be unavailable',
+      );
+      return [];
+    }),
   ]);
 
   logger.info(
@@ -67,9 +78,37 @@ export async function fetchPRComments(pr: PullRequest): Promise<PRCommentContext
     );
   }
 
+  // Merge GraphQL thread resolution data
+  const threadLookup = new Map(
+    reviewThreads.map((t) => [t.rootCommentDatabaseId, t]),
+  );
+  for (const [rootId, thread] of rootMap) {
+    const meta = threadLookup.get(rootId);
+    if (meta) {
+      thread.threadNodeId = meta.nodeId;
+      thread.isResolved = meta.isResolved;
+    }
+  }
+
+  const threads = [...rootMap.values()];
+
+  // Update PR comment counts so the inbox shows accurate numbers
+  const resolvedCount = threads.filter((t) => t.isResolved).length;
+  try {
+    const prRepo = AppDataSource.getRepository(PullRequest);
+    await prRepo.update(pr.id, {
+      github_comments: issueComments.length,
+      github_review_comments: reviewComments.length,
+    });
+  } catch (err) {
+    logger.warn({ prId: pr.id, err }, 'Failed to update PR comment counts');
+  }
+
   return {
-    threads: [...rootMap.values()],
+    threads,
     issueComments,
+    threadCount: threads.length,
+    resolvedCount,
   };
 }
 

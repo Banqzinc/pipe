@@ -70,6 +70,12 @@ export class PullRequest {
   @Column({ type: 'timestamptz', nullable: true })
   review_completed_at!: Date | null;
 
+  @Column({ type: 'int', default: 0 })
+  github_comments!: number;
+
+  @Column({ type: 'int', default: 0 })
+  github_review_comments!: number;
+
   @CreateDateColumn()
   created_at!: Date;
 

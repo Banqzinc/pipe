@@ -1,0 +1,105 @@
+import { useMemo, useState } from 'react';
+import type { DiffFile } from '../../api/queries/diff.ts';
+import type { FindingItem } from '../../api/queries/findings.ts';
+import type { CommentThread, CommentReply } from '../../api/queries/comments.ts';
+import { buildAnnotationMap } from '../../lib/diff-annotations.ts';
+import { DiffFileSection } from './diff-file-section.tsx';
+import { DiscussionComments } from './discussion-comments.tsx';
+
+interface DiffViewerProps {
+  files: DiffFile[];
+  findings: FindingItem[];
+  commentThreads: CommentThread[] | undefined;
+  issueComments?: CommentReply[];
+  onAccept: (findingId: string) => void;
+  onReject: (findingId: string) => void;
+  onStartEdit: (findingId: string) => void;
+  editingId: string | null;
+  editBody: string;
+  onEditBodyChange: (value: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
+  onReplyToComment?: (commentId: number, body: string) => void;
+  onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
+}
+
+export function DiffViewer({
+  files,
+  findings,
+  commentThreads,
+  issueComments,
+  onAccept,
+  onReject,
+  onStartEdit,
+  editingId,
+  editBody,
+  onEditBodyChange,
+  onEditSave,
+  onEditCancel,
+  onReplyToComment,
+  onResolveThread,
+}: DiffViewerProps) {
+  const annotationMap = useMemo(
+    () => buildAnnotationMap(findings, commentThreads),
+    [findings, commentThreads],
+  );
+
+  const [allCollapsed, setAllCollapsed] = useState(false);
+
+  if (files.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        No files changed in this PR.
+      </div>
+    );
+  }
+
+  const totalAdditions = files.reduce((s, f) => s + f.additions, 0);
+  const totalDeletions = files.reduce((s, f) => s + f.deletions, 0);
+
+  return (
+    <div className="space-y-4 mr-[360px]">
+      {/* Summary bar */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span>{files.length} file{files.length !== 1 ? 's' : ''} changed</span>
+        {totalAdditions > 0 && (
+          <span className="text-green-400">+{totalAdditions}</span>
+        )}
+        {totalDeletions > 0 && (
+          <span className="text-red-400">-{totalDeletions}</span>
+        )}
+        <button
+          type="button"
+          onClick={() => setAllCollapsed(!allCollapsed)}
+          className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {allCollapsed ? 'Expand all' : 'Collapse all'}
+        </button>
+      </div>
+
+      {/* Discussion comments (non-inline) */}
+      {issueComments && issueComments.length > 0 && (
+        <DiscussionComments comments={issueComments} />
+      )}
+
+      {/* File sections */}
+      {files.map((file) => (
+        <DiffFileSection
+          key={file.filename}
+          file={file}
+          annotations={annotationMap.get(file.filename)}
+          onAccept={onAccept}
+          onReject={onReject}
+          onStartEdit={onStartEdit}
+          editingId={editingId}
+          editBody={editBody}
+          onEditBodyChange={onEditBodyChange}
+          onEditSave={onEditSave}
+          onEditCancel={onEditCancel}
+          onReplyToComment={onReplyToComment}
+          onResolveThread={onResolveThread}
+        />
+      ))}
+    </div>
+  );
+}

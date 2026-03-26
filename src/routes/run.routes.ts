@@ -159,6 +159,31 @@ router.get(
       // Check for a review post
       const post = await postRepo.findOneBy({ run_id: run.id });
 
+      // If this is a stack run, include all stack PRs
+      let stackPrsData: Array<{
+        id: string;
+        github_pr_number: number;
+        title: string;
+        author: string;
+        stack_position: number | null;
+        stack_size: number | null;
+      }> | undefined;
+      if (run.stack_id) {
+        const prRepo = AppDataSource.getRepository(PullRequest);
+        const stackPrs = await prRepo.find({
+          where: { stack_id: run.stack_id, repo_id: pr.repo_id },
+          order: { stack_position: 'ASC' },
+        });
+        stackPrsData = stackPrs.map((sp) => ({
+          id: sp.id,
+          github_pr_number: sp.github_pr_number,
+          title: sp.title,
+          author: sp.author,
+          stack_position: sp.stack_position,
+          stack_size: sp.stack_size,
+        }));
+      }
+
       res.json({
         id: run.id,
         pr: {
@@ -181,6 +206,8 @@ router.get(
         head_sha: run.head_sha, // SHA at time of run
         status: run.status,
         is_self_review: run.is_self_review,
+        stack_id: run.stack_id,
+        stack_prs: stackPrsData,
         brief: run.brief,
         risk_signals: run.risk_signals,
         error_message: run.error_message,

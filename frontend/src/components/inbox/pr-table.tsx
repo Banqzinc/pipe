@@ -4,6 +4,8 @@ import { StatusBadge } from '../common/status-badge.tsx';
 import { SplitButton } from '../common/split-button.tsx';
 import { StackGroup } from './stack-group.tsx';
 import { formatRelativeTime, formatShortDate } from '../../lib/format-date.ts';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
 
 // --- PR Row ---
 
@@ -42,53 +44,71 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRu
       }}
       role="button"
       tabIndex={0}
-      className={`flex items-center gap-4 px-4 py-3 hover:bg-gray-800/50 cursor-pointer transition-colors ${
+      className={`flex items-center gap-4 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors ${
         indented ? 'pl-10' : ''
       } ${isHighRisk ? 'bg-red-500/5 hover:bg-red-500/10' : ''}`}
     >
       {/* PR number + title */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
-            {repoShort}
-          </span>
-          <span className="text-gray-500 text-sm font-mono">
+          {!indented && (
+            <Badge variant="outline" className="text-xs font-semibold bg-blue-500/15 text-blue-400 border-blue-500/20">
+              {repoShort}
+            </Badge>
+          )}
+          <span className="text-muted-foreground text-sm font-mono">
             #{pr.github_pr_number}
           </span>
-          <span className="text-gray-200 text-sm truncate">{pr.title}</span>
+          <span className="text-foreground text-sm font-medium truncate">{pr.title}</span>
           {pr.latest_run?.is_self_review && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-orange-500/20 text-orange-400">
+            <Badge variant="outline" className="text-xs font-medium bg-orange-500/20 text-orange-400 border-orange-500/20">
               SELF
-            </span>
+            </Badge>
           )}
           {pr.is_draft && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-500/20 text-gray-400">
+            <Badge variant="secondary" className="text-xs font-medium">
               Draft
-            </span>
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-gray-500 text-xs">{pr.author}</span>
+          <span className="text-muted-foreground text-xs">{pr.author}</span>
           {pr.stack_id && pr.stack_position != null && pr.stack_size != null && (
-            <span className="text-gray-600 text-xs">
+            <span className="text-muted-foreground/60 text-xs">
               {pr.stack_position}/{pr.stack_size}
             </span>
           )}
-          <span className="text-gray-700 text-xs">·</span>
-          <span className="text-gray-600 text-xs font-mono truncate max-w-48">{pr.branch_name}</span>
-          <span className="text-gray-700 text-xs">·</span>
-          <span className="text-gray-600 text-xs">{formatShortDate(pr.created_at)}</span>
-          <span className="text-gray-700 text-xs">·</span>
-          <span className="text-gray-600 text-xs">updated {formatRelativeTime(pr.updated_at)}</span>
+          <span className="text-muted-foreground/40 text-xs">&middot;</span>
+          <span className="text-muted-foreground/60 text-xs font-mono truncate max-w-48">{pr.branch_name}</span>
+          <span className="text-muted-foreground/40 text-xs">&middot;</span>
+          <span className="text-muted-foreground/60 text-xs">{formatShortDate(pr.created_at)}</span>
+          <span className="text-muted-foreground/40 text-xs">&middot;</span>
+          <span className="text-muted-foreground/60 text-xs">updated {formatRelativeTime(pr.updated_at)}</span>
         </div>
       </div>
 
       {/* Status badge */}
       <StatusBadge run={pr.latest_run} />
 
+      {/* Comment count */}
+      {(() => {
+        const discussions = pr.comment_counts?.discussions ?? 0;
+        const reviewComments = pr.comment_counts?.review_comments ?? 0;
+        const total = discussions + reviewComments;
+        if (total === 0) return null;
+        return (
+          <span className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+            </svg>
+            {total}
+          </span>
+        );
+      })()}
+
       {/* Findings count */}
       {pr.latest_run && pr.latest_run.findings_count.total > 0 && (
-        <span className="text-xs text-gray-500 tabular-nums w-16 text-right">
+        <span className="text-xs text-muted-foreground tabular-nums w-16 text-right">
           {pr.latest_run.findings_count.pending > 0
             ? `${pr.latest_run.findings_count.pending} pending`
             : `${pr.latest_run.findings_count.total} findings`}
@@ -97,34 +117,36 @@ export function PrRow({ pr, onRunReview, onCustomizeRun, onToggleCompleted, isRu
 
       {/* Mark as Completed / Undo */}
       {pr.latest_run && !pr.review_completed_at && (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="xs"
           onClick={(e) => {
             e.stopPropagation();
             onToggleCompleted(pr.id, true);
           }}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-gray-400 bg-gray-800 hover:text-green-400 hover:bg-green-500/10 border border-gray-700 hover:border-green-500/30 transition-colors"
+          className="gap-1 text-muted-foreground hover:text-green-400 hover:bg-green-500/10 hover:border-green-500/30"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
           Done
-        </button>
+        </Button>
       )}
       {pr.review_completed_at && (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="xs"
           onClick={(e) => {
             e.stopPropagation();
             onToggleCompleted(pr.id, false);
           }}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-green-400 bg-green-500/10 hover:text-gray-400 hover:bg-gray-800 border border-green-500/20 hover:border-gray-700 transition-colors"
+          className="gap-1 text-green-400 bg-green-500/10 border-green-500/20 hover:text-muted-foreground hover:bg-muted hover:border-border"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
           </svg>
           Undo
-        </button>
+        </Button>
       )}
 
       {/* Run / Re-run Review button */}
@@ -156,9 +178,12 @@ interface PrTableProps {
   onCustomizeRun: (prId: string) => void;
   onToggleCompleted: (prId: string, completed: boolean) => void;
   isRunning: boolean;
+  onRunStackReview?: (stackId: string) => void;
+  onCustomizeStackRun?: (stackId: string) => void;
+  isStackRunning?: boolean;
 }
 
-export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, isRunning }: PrTableProps) {
+export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, isRunning, onRunStackReview, onCustomizeStackRun, isStackRunning }: PrTableProps) {
   // Group by stack_id
   const stacks = new Map<string, PullRequestListItem[]>();
   const standalone: PullRequestListItem[] = [];
@@ -193,11 +218,14 @@ export function PrTable({ prs, onRunReview, onCustomizeRun, onToggleCompleted, i
           onCustomizeRun={onCustomizeRun}
           onToggleCompleted={onToggleCompleted}
           isRunning={isRunning}
+          onRunStackReview={onRunStackReview}
+          onCustomizeStackRun={onCustomizeStackRun}
+          isStackRunning={isStackRunning}
         />
       ))}
 
       {standalone.length > 0 && (
-        <div className="border border-white/[0.08] rounded-lg overflow-hidden divide-y divide-white/[0.06]">
+        <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/60">
           {standalone.map((pr) => (
             <PrRow
               key={pr.id}

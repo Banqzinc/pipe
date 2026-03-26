@@ -44,12 +44,23 @@ export interface RiskSignals {
   signals: RiskSignal[];
 }
 
+export interface StackPr {
+  id: string;
+  github_pr_number: number;
+  title: string;
+  author: string;
+  stack_position: number | null;
+  stack_size: number | null;
+}
+
 export interface RunDetail {
   id: string;
   pr: RunDetailPr;
   head_sha: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'partial';
   is_self_review: boolean;
+  stack_id: string | null;
+  stack_prs?: StackPr[];
   brief: Brief | null;
   risk_signals: RiskSignals | null;
   error_message: string | null;

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useRepos } from '../../api/queries/repos.ts';
 import { useUpdateRepo, useDeleteRepo, useSyncRepo } from '../../api/mutations/repos.ts';
+import { Button } from '@/components/ui/button.tsx';
 
 function SettingsPage() {
   const { data: repos, isLoading } = useRepos();
@@ -27,19 +28,19 @@ function SettingsPage() {
 
       {/* Connected Repos */}
       <section>
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-4">
           Connected Repos
         </h2>
 
         {isLoading && (
-          <div className="text-sm text-gray-500">Loading repositories...</div>
+          <div className="text-sm text-muted-foreground">Loading repositories...</div>
         )}
 
         {!isLoading && repos && repos.length === 0 && (
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
-            <p className="text-sm text-gray-400 mb-2">No repositories connected yet.</p>
-            <p className="text-xs text-gray-500">
-              Run <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">pipe repo add</code> from
+          <div className="rounded-lg border border-border bg-card p-6 text-center">
+            <p className="text-sm text-muted-foreground mb-2">No repositories connected yet.</p>
+            <p className="text-xs text-muted-foreground">
+              Run <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">pipe repo add</code> from
               your terminal to connect a repository.
             </p>
           </div>
@@ -47,58 +48,58 @@ function SettingsPage() {
 
         {repos && repos.length > 0 && (
           <>
-            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 mb-4">
+            <div className="rounded-lg border border-border divide-y divide-border mb-4">
               {repos.map((repo) => {
                 const label = `${repo.github_owner}/${repo.github_name}`;
                 return (
                   <div
                     key={repo.id}
-                    className="flex items-center gap-4 px-4 py-3 bg-gray-900 first:rounded-t-lg last:rounded-b-lg"
+                    className="flex items-center gap-4 px-4 py-3 bg-card first:rounded-t-lg last:rounded-b-lg"
                   >
-                    <span className="flex-1 text-sm font-mono text-gray-300">
+                    <span className="flex-1 text-sm font-mono text-foreground">
                       {label}
                     </span>
 
                     {/* Auto-trigger toggle */}
-                    <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                       <input
                         type="checkbox"
                         checked={repo.auto_trigger_on_open}
                         onChange={() =>
                           handleAutoTriggerToggle(repo.id, repo.auto_trigger_on_open)
                         }
-                        className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                        className="rounded border-border bg-muted text-primary focus:ring-primary"
                       />
                       Auto-trigger
                     </label>
 
                     {/* Sync button */}
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => handleSync(repo.id)}
                       disabled={syncRepo.isPending && syncRepo.variables === repo.id}
-                      className="px-2.5 py-1 text-xs rounded bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 transition-colors"
                     >
                       {syncRepo.isPending && syncRepo.variables === repo.id
                         ? 'Syncing...'
                         : 'Sync PRs'}
-                    </button>
+                    </Button>
 
                     {/* Delete button */}
-                    <button
-                      type="button"
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={() => handleDelete(repo.id, label)}
                       disabled={deleteRepo.isPending}
-                      className="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 border border-red-800/50 transition-colors"
                     >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 );
               })}
             </div>
-            <p className="text-xs text-gray-500">
-              Run <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">pipe repo add</code> from
+            <p className="text-xs text-muted-foreground">
+              Run <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">pipe repo add</code> from
               your terminal to connect more repositories.
             </p>
           </>
