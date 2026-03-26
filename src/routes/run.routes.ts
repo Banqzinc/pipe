@@ -1,6 +1,8 @@
+import { spawn } from 'node:child_process';
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../db/data-source';
+import { ChatMessage } from '../entities/ChatMessage.entity';
 import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
 import { ReviewPost } from '../entities/ReviewPost.entity';
@@ -261,6 +263,183 @@ router.post(
       const runId = req.params.id as string;
       const result = await postingService.exportFindings(runId);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ---------- Chat Endpoints ----------
+
+/** Extract displayable text from a CLI stream-json event */
+function extractChatText(event: unknown): string {
+  if (!event || typeof event !== 'object') return '';
+  const ev = event as Record<string, unknown>;
+  // biome-ignore lint/suspicious/noExplicitAny: stream-json events are untyped
+  const inner = (ev.type === 'stream_event' ? ev.event : ev) as Record<string, any> | null;
+  if (!inner || inner.type !== 'content_block_delta') return '';
+  if (inner.delta?.type === 'text_delta') {
+    return inner.delta.text ?? '';
+  }
+  return '';
+}
+
+// GET /api/runs/:id/chat/messages — Return chat history for a run
+router.get(
+  '/runs/:id/chat/messages',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const runId = req.params.id as string;
+      const msgRepo = AppDataSource.getRepository(ChatMessage);
+      const messages = await msgRepo.find({
+        where: { run_id: runId },
+        order: { created_at: 'ASC' },
+      });
+      res.json({
+        messages: messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/runs/:id/chat/stream — SSE stream for live chat output
+router.get(
+  '/runs/:id/chat/stream',
+  async (req: Request, res: Response) => {
+    const runId = req.params.id as string;
+    const chatKey = `chat:${runId}`;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    let eventId = 0;
+    const sendEvent = (data: unknown) => {
+      eventId++;
+      res.write(`id: ${eventId}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Replay buffered events
+    const buffered = runEventBus.getBufferedEvents(chatKey);
+    for (const e of buffered) {
+      sendEvent(e.event);
+    }
+
+    // Subscribe to new events
+    const unsubscribe = runEventBus.subscribe(chatKey, (buffered) => {
+      sendEvent(buffered.event);
+      if (buffered.event.type === 'chat_done') {
+        clearInterval(heartbeat);
+        res.end();
+      }
+    });
+
+    // Heartbeat every 15s to keep connection alive
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 15_000);
+
+    req.on('close', () => {
+      unsubscribe();
+      clearInterval(heartbeat);
+    });
+  },
+);
+
+// POST /api/runs/:id/chat — Send a message and spawn claude --resume
+router.post(
+  '/runs/:id/chat',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const runId = req.params.id as string;
+      const runRepo = AppDataSource.getRepository(ReviewRun);
+      const msgRepo = AppDataSource.getRepository(ChatMessage);
+      const run = await runRepo.findOne({ where: { id: runId } });
+
+      if (!run) throw new AppError('Run not found', 404, 'NOT_FOUND');
+      if (!run.session_id) {
+        throw new AppError(
+          'Chat not available — no session ID for this run',
+          400,
+          'NO_SESSION',
+        );
+      }
+
+      const { message } = req.body as { message?: string };
+      if (!message?.trim()) {
+        throw new AppError('Message is required', 400, 'VALIDATION_ERROR');
+      }
+
+      // Save user message
+      const userMsg = msgRepo.create({
+        run_id: run.id,
+        role: 'user' as const,
+        content: message.trim(),
+      });
+      await msgRepo.save(userMsg);
+
+      // Return immediately — response comes via SSE
+      res.status(202).json({ message_id: userMsg.id });
+
+      // Spawn claude --resume in background
+      const chatKey = `chat:${run.id}`;
+      const args = [
+        '--resume',
+        run.session_id,
+        '--print',
+        '--output-format',
+        'stream-json',
+        '-p',
+        message.trim(),
+        '--allowedTools',
+        'Read,Grep,Glob,LS',
+      ];
+
+      const child = spawn('claude', args, { cwd: process.cwd() });
+      let responseText = '';
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n').filter(Boolean);
+        for (const line of lines) {
+          try {
+            const event = JSON.parse(line);
+            const text = extractChatText(event);
+            if (text) {
+              responseText += text;
+              runEventBus.emit(chatKey, { type: 'chat_text', text });
+            }
+          } catch {
+            // Non-JSON line — ignore
+          }
+        }
+      });
+
+      child.on('close', async () => {
+        // Save assistant message
+        if (responseText.trim()) {
+          const assistantMsg = msgRepo.create({
+            run_id: run.id,
+            role: 'assistant' as const,
+            content: responseText.trim(),
+          });
+          await msgRepo.save(assistantMsg);
+        }
+        runEventBus.emit(chatKey, { type: 'chat_done' });
+      });
+
+      child.on('error', (err) => {
+        logger.error({ runId: run.id, err }, 'Chat CLI spawn error');
+        runEventBus.emit(chatKey, { type: 'chat_done' });
+      });
     } catch (err) {
       next(err);
     }
