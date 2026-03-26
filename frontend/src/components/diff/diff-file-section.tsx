@@ -26,6 +26,7 @@ interface DiffFileSectionProps {
   onEditCancel?: () => void;
   onReplyToComment?: (commentId: number, body: string) => void;
   onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
+  onDiscuss?: (prefill: string) => void;
 }
 
 export function DiffFileSection({
@@ -41,6 +42,7 @@ export function DiffFileSection({
   onEditCancel,
   onReplyToComment,
   onResolveThread,
+  onDiscuss,
 }: DiffFileSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -112,6 +114,7 @@ export function DiffFileSection({
                             onEditCancel={onEditCancel}
                             onReplyToComment={onReplyToComment}
                             onResolveThread={onResolveThread}
+                            onDiscuss={onDiscuss}
                           />
                         </div>
                       )}

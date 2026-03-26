@@ -50,6 +50,7 @@ interface InlineAnnotationProps {
   onEditCancel?: () => void;
   onReplyToComment?: (commentId: number, body: string) => void;
   onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
+  onDiscuss?: (prefill: string) => void;
 }
 
 export function InlineAnnotation({
@@ -64,6 +65,7 @@ export function InlineAnnotation({
   onEditCancel,
   onReplyToComment,
   onResolveThread,
+  onDiscuss,
 }: InlineAnnotationProps) {
   const [expandedSet, setExpandedSet] = useState<Set<number>>(
     () => new Set(annotations.map((_, i) => i)),
@@ -157,6 +159,13 @@ export function InlineAnnotation({
                             className="px-2 py-0.5 text-xs font-medium rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                           >
                             Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDiscuss?.(`Regarding finding "${f.title}": `)}
+                            className="px-2 py-0.5 text-xs font-medium rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                          >
+                            Discuss
                           </button>
                         </div>
                       )}
@@ -292,13 +301,22 @@ export function InlineAnnotation({
                           </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setReplyingTo(t.root_comment_id)}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Reply
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setReplyingTo(t.root_comment_id)}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Reply
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDiscuss?.(`About @${t.root_user}'s comment "${t.root_body.replace(/\n/g, ' ').trim().slice(0, 60)}": `)}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Discuss
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

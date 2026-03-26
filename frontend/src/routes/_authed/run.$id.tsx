@@ -23,6 +23,7 @@ import { FindingList } from '../../components/run/finding-list.tsx';
 import { DiffViewer } from '../../components/diff/diff-viewer.tsx';
 import { StaleBanner } from '../../components/run/stale-banner.tsx';
 import { PostBar } from '../../components/run/post-bar.tsx';
+import { ChatPanel } from '../../components/run/chat-panel.tsx';
 
 function RunPage() {
   const { id } = Route.useParams();
@@ -79,6 +80,9 @@ function RunPage() {
   const [rawOutputExpanded, setRawOutputExpanded] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
   const cliOutputRef = useRef<HTMLPreElement>(null);
+
+  // Chat panel state
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
 
   // Post feedback state
   const [postError, setPostError] = useState<string | null>(null);
@@ -180,6 +184,11 @@ function RunPage() {
     (commentId: number, threadNodeId: string, resolved: boolean) =>
       resolveThread.mutate({ commentId, threadNodeId, resolved }),
     [resolveThread],
+  );
+
+  const handleDiscuss = useCallback(
+    (prefill: string) => setPendingChatMessage(prefill),
+    [],
   );
 
   const handleRejectNitpicks = useCallback(() => {
@@ -663,6 +672,7 @@ function RunPage() {
                   onEditCancel={handleEditCancel}
                   onReplyToComment={handleReplyToComment}
                   onResolveThread={handleResolveThread}
+                  onDiscuss={handleDiscuss}
                 />
               ) : (
                 <div className="flex items-center gap-3 py-4">
@@ -692,6 +702,17 @@ function RunPage() {
           onApprove={handleApprove}
           isApproving={approvePR.isPending}
           isApproved={isApproved}
+        />
+      )}
+
+      {/* Chat panel */}
+      {isComplete && (
+        <ChatPanel
+          runId={id}
+          sessionId={run?.session_id ?? null}
+          isComplete={isComplete}
+          pendingMessage={pendingChatMessage}
+          onPendingMessageConsumed={() => setPendingChatMessage(null)}
         />
       )}
 
