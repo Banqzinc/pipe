@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { CommentReply } from '../../api/queries/comments.ts';
 import { formatRelativeTime } from '../../lib/format-date.ts';
 
@@ -59,7 +60,7 @@ export function DiscussionComments({ comments }: DiscussionCommentsProps) {
                 </a>
               </div>
               <div className="prose prose-sm prose-invert max-w-none text-muted-foreground text-xs pl-7">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                   {comment.body}
                 </ReactMarkdown>
               </div>
