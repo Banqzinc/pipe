@@ -57,6 +57,9 @@ export class ReviewRun {
   @Column({ type: 'text', nullable: true })
   cli_output!: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  session_id!: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   started_at!: Date | null;
 

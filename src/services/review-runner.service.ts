@@ -350,6 +350,7 @@ export class ReviewRunner {
       let stderr = '';
       let lastFlushedLength = 0;
       let lineBuffer = '';
+      let sessionId: string | null = null;
 
       // Flush accumulated display text to DB every 5 seconds
       const flushInterval = setInterval(() => {
@@ -391,6 +392,11 @@ export class ReviewRunner {
           try {
             const event = JSON.parse(line);
 
+            // Extract session_id from early system events
+            if (!sessionId && event.session_id) {
+              sessionId = event.session_id;
+            }
+
             const content = extractStreamContent(event);
             if (content) {
               displayText += content.text;
@@ -411,7 +417,7 @@ export class ReviewRunner {
         stderr += chunk.toString();
       });
 
-      child.on('close', (code) => {
+      child.on('close', async (code) => {
         clearInterval(flushInterval);
         clearTimeout(timeout);
 
@@ -419,11 +425,23 @@ export class ReviewRunner {
         if (lineBuffer.trim()) {
           try {
             const event = JSON.parse(lineBuffer);
+            if (!sessionId && event.session_id) {
+              sessionId = event.session_id;
+            }
             if (event.type === 'result') {
               resultLine = lineBuffer;
             }
           } catch {
             // ignore
+          }
+        }
+
+        // Persist session_id if captured
+        if (sessionId) {
+          try {
+            await runRepo.update(runId, { session_id: sessionId });
+          } catch (err) {
+            logger.warn({ runId, err }, 'Failed to persist session_id');
           }
         }
 

@@ -206,6 +206,7 @@ router.get(
         head_sha: run.head_sha, // SHA at time of run
         status: run.status,
         is_self_review: run.is_self_review,
+        session_id: run.session_id,
         stack_id: run.stack_id,
         stack_prs: stackPrsData,
         brief: run.brief,

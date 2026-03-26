@@ -59,6 +59,7 @@ export interface RunDetail {
   head_sha: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'partial';
   is_self_review: boolean;
+  session_id: string | null;
   stack_id: string | null;
   stack_prs?: StackPr[];
   brief: Brief | null;
