@@ -117,9 +117,10 @@ function RunPage() {
     }
   }
 
-  // Stale detection
+  // Stale detection — skip for stack reviews (run.head_sha is the topmost PR's SHA,
+  // not the root PR's, so they'll always differ)
   const isStale =
-    run != null && run.pr.head_sha !== run.head_sha;
+    run != null && !run.stack_id && run.pr.head_sha !== run.head_sha;
 
   // Whether we're in read-only mode (already posted)
   const isReadOnly = run?.has_post ?? false;
