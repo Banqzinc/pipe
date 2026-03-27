@@ -1,6 +1,7 @@
 import { In } from 'typeorm';
 import { AppDataSource } from '../db/data-source';
 import { ReviewRun } from '../entities/ReviewRun.entity';
+import { PullRequest } from '../entities/PullRequest.entity';
 import { Finding } from '../entities/Finding.entity';
 import { ReviewPost } from '../entities/ReviewPost.entity';
 import { FindingStatus, FindingSeverity } from '../entities/enums';
@@ -72,12 +73,30 @@ export class PostingService {
 
     const pr = run.pullRequest;
     const repo = pr.repo;
+    const isStackReview = !!run.stack_id;
 
     // 2. Decrypt repo PAT, create GitHubClient
     const pat = decrypt(repo.pat_token_encrypted);
     const client = new GitHubClient(pat);
 
-    // 3. Stale check
+    // 3. Load accepted/edited findings
+    const findings = await findingRepo.find({
+      where: {
+        run_id: runId,
+        status: In([FindingStatus.Accepted, FindingStatus.Edited]),
+      },
+    });
+
+    if (findings.length === 0) {
+      throw new AppError('No accepted findings to post', 400);
+    }
+
+    // 4. For stack reviews, group findings by PR and post to each
+    if (isStackReview) {
+      return this.postStackReview(run, findings, client, repo, findingRepo, postRepo);
+    }
+
+    // 5. Single-PR review: stale check
     const currentPR = await client.getPR(repo.github_owner, repo.github_name, pr.github_pr_number);
     if (currentPR.head.sha !== run.head_sha) {
       throw new AppError(
@@ -87,24 +106,172 @@ export class PostingService {
       );
     }
 
-    // 4. Load accepted/edited findings
-    const findings = await findingRepo.find({
-      where: {
-        run_id: runId,
-        status: In([FindingStatus.Accepted, FindingStatus.Edited]),
-      },
-    });
-
-    // 5. If no accepted/edited findings, throw
-    if (findings.length === 0) {
-      throw new AppError('No accepted findings to post', 400);
-    }
-
     // 6. Fetch diff to validate comment line numbers
     const diff = await client.getPRDiff(repo.github_owner, repo.github_name, pr.github_pr_number);
     const diffLineMap = parseDiffLineMap(diff);
 
-    // 7. Build GitHub review body, separating valid inline comments from out-of-diff ones
+    // 7. Build GitHub review body
+    const { inlineComments, bodyComments } = this.buildReviewComments(findings, diffLineMap, runId);
+
+    const body = bodyComments.length > 0
+      ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
+      : '';
+
+    // 8. Post review
+    let review;
+    try {
+      review = await client.createReview(
+        repo.github_owner,
+        repo.github_name,
+        pr.github_pr_number,
+        { event: 'COMMENT' as const, body, comments: inlineComments },
+      );
+    } catch (err) {
+      logger.error({ runId, err }, 'Failed to create GitHub review');
+      throw new AppError(
+        `Failed to post review to GitHub: ${err instanceof Error ? err.message : String(err)}`,
+        502,
+        'GITHUB_API_ERROR',
+      );
+    }
+
+    // 9. Create ReviewPost record
+    const post = postRepo.create({
+      run_id: runId,
+      github_review_id: String(review.id),
+      posted_sha: run.head_sha,
+      findings_count: findings.length,
+      posted_at: new Date(),
+    });
+    await postRepo.save(post);
+
+    // 10. Update findings status
+    await findingRepo.update(findings.map((f) => f.id), { status: FindingStatus.Posted });
+
+    logger.info({ runId, reviewId: review.id, postedCount: findings.length }, 'Review posted to GitHub');
+
+    return {
+      review_id: review.id,
+      review_url: review.html_url,
+      posted_count: findings.length,
+    };
+  }
+
+  /** Post findings to multiple PRs in a stack review. */
+  private async postStackReview(
+    run: ReviewRun,
+    findings: Finding[],
+    client: GitHubClient,
+    repo: { github_owner: string; github_name: string },
+    findingRepo: ReturnType<typeof AppDataSource.getRepository<Finding>>,
+    postRepo: ReturnType<typeof AppDataSource.getRepository<ReviewPost>>,
+  ): Promise<{ review_id: number; review_url: string; posted_count: number }> {
+    const runId = run.id;
+    const prRepo = AppDataSource.getRepository(PullRequest);
+
+    // Group findings by pr_id
+    const prGroups = new Map<string, Finding[]>();
+    const unattributed: Finding[] = [];
+
+    for (const f of findings) {
+      if (f.pr_id) {
+        const group = prGroups.get(f.pr_id) ?? [];
+        group.push(f);
+        prGroups.set(f.pr_id, group);
+      } else {
+        unattributed.push(f);
+      }
+    }
+
+    // Attribute unattributed findings to the root PR
+    if (unattributed.length > 0) {
+      const rootGroup = prGroups.get(run.pr_id) ?? [];
+      rootGroup.push(...unattributed);
+      prGroups.set(run.pr_id, rootGroup);
+    }
+
+    let totalPosted = 0;
+    let lastReviewId = 0;
+    let lastReviewUrl = '';
+
+    // Post to each PR separately
+    for (const [prId, prFindings] of prGroups) {
+      const targetPr = await prRepo.findOneBy({ id: prId });
+      if (!targetPr) {
+        logger.warn({ runId, prId }, 'Stack PR not found, skipping findings');
+        continue;
+      }
+
+      // Fetch this PR's diff
+      let diff: string;
+      try {
+        diff = await client.getPRDiff(repo.github_owner, repo.github_name, targetPr.github_pr_number);
+      } catch (err) {
+        logger.error({ runId, prNumber: targetPr.github_pr_number, err }, 'Failed to fetch PR diff for posting');
+        continue;
+      }
+
+      const diffLineMap = parseDiffLineMap(diff);
+      const { inlineComments, bodyComments } = this.buildReviewComments(prFindings, diffLineMap, runId);
+
+      const body = bodyComments.length > 0
+        ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
+        : '';
+
+      try {
+        const review = await client.createReview(
+          repo.github_owner,
+          repo.github_name,
+          targetPr.github_pr_number,
+          { event: 'COMMENT' as const, body, comments: inlineComments },
+        );
+
+        lastReviewId = review.id;
+        lastReviewUrl = review.html_url;
+        totalPosted += prFindings.length;
+
+        await findingRepo.update(prFindings.map((f) => f.id), { status: FindingStatus.Posted });
+
+        logger.info(
+          { runId, prNumber: targetPr.github_pr_number, reviewId: review.id, count: prFindings.length },
+          'Stack review posted to PR',
+        );
+      } catch (err) {
+        logger.error({ runId, prNumber: targetPr.github_pr_number, err }, 'Failed to post stack review to PR');
+        throw new AppError(
+          `Failed to post review to PR #${targetPr.github_pr_number}: ${err instanceof Error ? err.message : String(err)}`,
+          502,
+          'GITHUB_API_ERROR',
+        );
+      }
+    }
+
+    // Create a single ReviewPost record for the stack run
+    const post = postRepo.create({
+      run_id: runId,
+      github_review_id: String(lastReviewId),
+      posted_sha: run.head_sha,
+      findings_count: totalPosted,
+      posted_at: new Date(),
+    });
+    await postRepo.save(post);
+
+    return {
+      review_id: lastReviewId,
+      review_url: lastReviewUrl,
+      posted_count: totalPosted,
+    };
+  }
+
+  /** Build inline and body comments from findings against a diff line map. */
+  private buildReviewComments(
+    findings: Finding[],
+    diffLineMap: Map<string, Set<number>>,
+    runId: string,
+  ): {
+    inlineComments: { path: string; line: number; side: 'RIGHT'; body: string }[];
+    bodyComments: string[];
+  } {
     const inlineComments: { path: string; line: number; side: 'RIGHT'; body: string }[] = [];
     const bodyComments: string[] = [];
 
@@ -123,7 +290,6 @@ export class PostingService {
           body: commentBody,
         });
       } else {
-        // Line not in diff — include as body comment
         bodyComments.push(`**${f.file_path}:${f.start_line}** — ${commentBody}`);
         logger.info(
           { runId, file: f.file_path, line: f.start_line },
@@ -132,56 +298,7 @@ export class PostingService {
       }
     }
 
-    const body = bodyComments.length > 0
-      ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
-      : '';
-
-    const reviewBody = {
-      event: 'COMMENT' as const,
-      body,
-      comments: inlineComments,
-    };
-
-    // 7. Call client.createReview
-    let review;
-    try {
-      review = await client.createReview(
-        repo.github_owner,
-        repo.github_name,
-        pr.github_pr_number,
-        reviewBody,
-      );
-    } catch (err) {
-      logger.error({ runId, err }, 'Failed to create GitHub review');
-      throw new AppError(
-        `Failed to post review to GitHub: ${err instanceof Error ? err.message : String(err)}`,
-        502,
-        'GITHUB_API_ERROR',
-      );
-    }
-
-    // 8. Create ReviewPost record
-    const post = postRepo.create({
-      run_id: runId,
-      github_review_id: String(review.id),
-      posted_sha: run.head_sha,
-      findings_count: findings.length,
-      posted_at: new Date(),
-    });
-    await postRepo.save(post);
-
-    // 9. Update all posted findings' status to Posted
-    const findingIds = findings.map((f) => f.id);
-    await findingRepo.update(findingIds, { status: FindingStatus.Posted });
-
-    logger.info({ runId, reviewId: review.id, postedCount: findings.length }, 'Review posted to GitHub');
-
-    // 10. Return result
-    return {
-      review_id: review.id,
-      review_url: review.html_url,
-      posted_count: findings.length,
-    };
+    return { inlineComments, bodyComments };
   }
 
   async exportFindings(runId: string): Promise<{

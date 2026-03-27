@@ -10,6 +10,7 @@ export interface RunDetailPr {
     github_owner: string;
     github_name: string;
   };
+  base_branch: string;
   stack_id: string | null;
   stack_position: number | null;
   stack_size: number | null;

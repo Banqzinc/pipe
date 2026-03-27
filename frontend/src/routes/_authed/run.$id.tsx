@@ -12,7 +12,7 @@ import {
   usePostToGithub,
   useExportFindings,
 } from '../../api/mutations/findings.ts';
-import { useCreateRun } from '../../api/mutations/runs.ts';
+import { useCreateRun, useCreateStackRun } from '../../api/mutations/runs.ts';
 import { useRunStream } from '../../hooks/use-run-stream.ts';
 import { usePRComments } from '../../api/queries/comments.ts';
 import { usePRDiff } from '../../api/queries/diff.ts';
@@ -32,6 +32,9 @@ function RunPage() {
   // View mode toggle — default to diff so annotations are visible as sidebar
   const [viewMode, setViewMode] = useState<'findings' | 'diff'>('diff');
 
+  // Stack PR filter state (null = show all)
+  const [selectedPrId, setSelectedPrId] = useState<string | null>(null);
+
   // Data fetching
   const { data: run, isLoading: runLoading, error: runError } = useRun(id);
   const { data: findingsData } = useFindings(id);
@@ -44,8 +47,10 @@ function RunPage() {
     !!isComplete,
   );
 
+  // For stack reviews, fetch the selected PR's diff; otherwise fall back to root PR
+  const diffPrId = selectedPrId ?? run?.pr.id ?? '';
   const { data: diffData } = usePRDiff(
-    run?.pr.id ?? '',
+    diffPrId,
     !!isComplete,
   );
 
@@ -55,6 +60,7 @@ function RunPage() {
   const postToGithub = usePostToGithub(id);
   const exportFindings = useExportFindings(id);
   const createRun = useCreateRun();
+  const createStackRun = useCreateStackRun();
   const approvePR = useApprovePR(run?.pr.id ?? '');
   const replyToComment = useReplyToComment(run?.pr.id ?? '');
   const resolveThread = useResolveThread(run?.pr.id ?? '');
@@ -64,13 +70,6 @@ function RunPage() {
   // SSE stream for live output
   const isInProgress = run?.status === 'queued' || run?.status === 'running';
   const stream = useRunStream(id, isInProgress ?? false);
-
-  // Invalidate findings when run completes
-  useEffect(() => {
-    if (run?.status === 'completed' || run?.status === 'partial') {
-      void queryClient.invalidateQueries({ queryKey: ['findings', id] });
-    }
-  }, [run?.status, id, queryClient]);
 
   // Findings state management
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -103,6 +102,21 @@ function RunPage() {
     (a, b) => a.toolkit_order - b.toolkit_order,
   );
 
+  // Filtered findings for stack PR filter
+  const filteredFindings = selectedPrId
+    ? sortedFindings.filter((f) => f.pr_id === selectedPrId)
+    : sortedFindings;
+
+  // Compute per-PR finding counts for the stack navigator
+  const prFindingCounts = new Map<string, number>();
+  if (run?.stack_prs) {
+    for (const f of findings) {
+      if (f.pr_id) {
+        prFindingCounts.set(f.pr_id, (prFindingCounts.get(f.pr_id) ?? 0) + 1);
+      }
+    }
+  }
+
   // Stale detection
   const isStale =
     run != null && run.pr.head_sha !== run.head_sha;
@@ -115,10 +129,15 @@ function RunPage() {
 
   // Clamp focused index
   useEffect(() => {
-    if (focusedIndex >= sortedFindings.length && sortedFindings.length > 0) {
-      setFocusedIndex(sortedFindings.length - 1);
+    if (focusedIndex >= filteredFindings.length && filteredFindings.length > 0) {
+      setFocusedIndex(filteredFindings.length - 1);
     }
-  }, [sortedFindings.length, focusedIndex]);
+  }, [filteredFindings.length, focusedIndex]);
+
+  // Reset focus when PR filter changes
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [selectedPrId]);
 
   // Auto-scroll CLI output
   const liveOutput = stream.cliOutput || run?.cli_output || '';
@@ -130,8 +149,8 @@ function RunPage() {
 
   // Get focused finding
   const getFocusedFinding = useCallback((): FindingItem | undefined => {
-    return sortedFindings[focusedIndex];
-  }, [sortedFindings, focusedIndex]);
+    return filteredFindings[focusedIndex];
+  }, [filteredFindings, focusedIndex]);
 
   // Action handlers
   const handleAccept = useCallback(
@@ -256,15 +275,18 @@ function RunPage() {
 
   const handleRerun = useCallback(() => {
     if (!run) return;
-    createRun.mutate(
-      { prId: run.pr.id, isSelfReview: run.is_self_review },
-      {
-        onSuccess: (data) => {
-          void router.navigate({ to: `/run/${data.id}` as '/' });
-        },
-      },
-    );
-  }, [run, createRun, router]);
+    const onSuccess = (data: { id: string }) => {
+      void router.navigate({ to: `/run/${data.id}` as '/' });
+    };
+    if (run.stack_id) {
+      createStackRun.mutate({ stackId: run.stack_id }, { onSuccess });
+    } else {
+      createRun.mutate(
+        { prId: run.pr.id, isSelfReview: run.is_self_review },
+        { onSuccess },
+      );
+    }
+  }, [run, createRun, createStackRun, router]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -288,7 +310,7 @@ function RunPage() {
         case 'j':
           e.preventDefault();
           setFocusedIndex((prev) =>
-            Math.min(prev + 1, sortedFindings.length - 1),
+            Math.min(prev + 1, filteredFindings.length - 1),
           );
           break;
         case 'k':
@@ -338,7 +360,7 @@ function RunPage() {
     isComplete,
     isReadOnly,
     editingId,
-    sortedFindings.length,
+    filteredFindings.length,
     getFocusedFinding,
     handleAccept,
     handleReject,
@@ -422,9 +444,9 @@ function RunPage() {
         {/* Re-run button */}
         {(isComplete || isFailed) && !isReadOnly && (
           <SplitButton
-            label={createRun.isPending ? 'Starting...' : 'Re-run Review'}
+            label={createRun.isPending || createStackRun.isPending ? 'Starting...' : 'Re-run Review'}
             onClick={handleRerun}
-            disabled={createRun.isPending}
+            disabled={createRun.isPending || createStackRun.isPending}
             menuItems={[
               { label: 'Customize & Re-run...', onClick: () => setShowCustomize(true) },
             ]}
@@ -432,20 +454,82 @@ function RunPage() {
         )}
       </div>
 
-      {/* Stack PRs listing */}
+      {/* Stack PRs — vertical Graphite-style navigator */}
       {run.stack_id && run.stack_prs && run.stack_prs.length > 0 && (
-        <div className="px-6 py-3 border-b border-border bg-purple-500/[0.03]">
-          <div className="text-xs font-medium text-muted-foreground mb-1">Stack PRs</div>
-          <div className="flex flex-wrap gap-2">
-            {run.stack_prs.map((sp) => (
-              <span
-                key={sp.id}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted rounded px-2 py-1"
-              >
-                <span className="font-mono text-muted-foreground">#{sp.github_pr_number}</span>
-                <span className="truncate max-w-48">{sp.title}</span>
+        <div className="border-b border-border bg-purple-500/[0.03]">
+          <div className="px-6 py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stack</span>
+              <span className="text-xs text-muted-foreground">
+                {run.stack_prs.length} PRs
               </span>
-            ))}
+              {selectedPrId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPrId(null)}
+                  className="ml-auto text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+            <div className="relative pl-5">
+              {/* Vertical connector line */}
+              <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
+              {/* PRs — highest position (top of stack) first */}
+              {[...run.stack_prs].reverse().map((sp) => {
+                const isSelected = selectedPrId === sp.id;
+                const count = prFindingCounts.get(sp.id) ?? 0;
+                return (
+                  <div key={sp.id} className="relative flex items-start gap-3 pb-3">
+                    {/* Dot */}
+                    <div className="absolute -left-5 top-1">
+                      <div
+                        className={`w-[9px] h-[9px] rounded-full border-2 ${
+                          isSelected
+                            ? 'bg-purple-400 border-purple-400'
+                            : 'bg-background border-muted-foreground/40'
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPrId(isSelected ? null : sp.id)}
+                      className={`group flex items-center gap-2 py-0.5 text-xs transition-colors text-left ${
+                        isSelected
+                          ? 'text-purple-300'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <span className="font-mono text-muted-foreground group-hover:text-foreground">
+                        #{sp.github_pr_number}
+                      </span>
+                      <span className={`truncate max-w-md ${isSelected ? 'font-medium' : ''}`}>
+                        {sp.title}
+                      </span>
+                      {isComplete && count > 0 && (
+                        <span className={`shrink-0 text-[10px] rounded-full px-1.5 py-0.5 ${
+                          isSelected
+                            ? 'bg-purple-500/20 text-purple-300'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+              {/* Base branch (trunk) */}
+              <div className="relative flex items-start gap-3">
+                <div className="absolute -left-5 top-1">
+                  <div className="w-[9px] h-[9px] rounded-full border-2 bg-background border-muted-foreground/40" />
+                </div>
+                <span className="text-xs text-muted-foreground py-0.5">
+                  {run.pr.base_branch}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -456,7 +540,7 @@ function RunPage() {
         {isStale && (
           <StaleBanner
             onRerun={handleRerun}
-            isRerunning={createRun.isPending}
+            isRerunning={createRun.isPending || createStackRun.isPending}
           />
         )}
 
@@ -575,7 +659,7 @@ function RunPage() {
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Findings ({counts.total})
+                Findings ({selectedPrId ? filteredFindings.length : counts.total})
               </button>
               <button
                 type="button"
@@ -593,7 +677,7 @@ function RunPage() {
             {viewMode === 'findings' && (
               <>
                 {/* Keyboard shortcuts help */}
-                {!isReadOnly && sortedFindings.length > 0 && (
+                {!isReadOnly && filteredFindings.length > 0 && (
                   <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
                     <span>
                       <kbd className="bg-muted border border-border text-muted-foreground rounded px-1.5 py-0.5 font-mono">
@@ -639,7 +723,7 @@ function RunPage() {
                 )}
 
                 <FindingList
-                  findings={sortedFindings}
+                  findings={filteredFindings}
                   focusedIndex={focusedIndex}
                   onAccept={handleAccept}
                   onReject={handleReject}
@@ -650,7 +734,7 @@ function RunPage() {
                   onEditSave={handleEditSave}
                   onEditCancel={handleEditCancel}
                   commentThreads={commentsData?.threads}
-                  stackPrs={run.stack_prs}
+                  stackPrs={selectedPrId ? undefined : run.stack_prs}
                 />
               </>
             )}
@@ -659,7 +743,7 @@ function RunPage() {
               diffData ? (
                 <DiffViewer
                   files={diffData.files}
-                  findings={findings}
+                  findings={selectedPrId ? filteredFindings : findings}
                   commentThreads={commentsData?.threads}
                   issueComments={commentsData?.issue_comments}
                   onAccept={handleAccept}
@@ -721,19 +805,23 @@ function RunPage() {
         isOpen={showCustomize}
         onClose={() => setShowCustomize(false)}
         prId={run?.pr.id ?? ''}
+        stackId={run?.stack_id ?? undefined}
         onRun={(prompt) => {
           if (!run) return;
-          createRun.mutate(
-            { prId: run.pr.id, isSelfReview: run.is_self_review, prompt },
-            {
-              onSuccess: (data) => {
-                setShowCustomize(false);
-                void router.navigate({ to: `/run/${data.id}` as '/' });
-              },
-            },
-          );
+          const onSuccess = (data: { id: string }) => {
+            setShowCustomize(false);
+            void router.navigate({ to: `/run/${data.id}` as '/' });
+          };
+          if (run.stack_id) {
+            createStackRun.mutate({ stackId: run.stack_id, prompt }, { onSuccess });
+          } else {
+            createRun.mutate(
+              { prId: run.pr.id, isSelfReview: run.is_self_review, prompt },
+              { onSuccess },
+            );
+          }
         }}
-        isRunning={createRun.isPending}
+        isRunning={createRun.isPending || createStackRun.isPending}
         linearTicketId={run?.pr.linear_ticket_id}
         notionUrl={run?.pr.notion_url}
       />

@@ -50,7 +50,7 @@ router.post(
       await runRepo.save(run);
 
       // Enqueue for processing (fire-and-forget)
-      reviewRunner.enqueueRun(run.id).catch((err) => {
+      reviewRunner.enqueueRun(run.id, pr.repo_id).catch((err) => {
         // The runner handles its own error logging; this is a safety net
         console.error('Failed to enqueue run:', err);
       });
@@ -197,6 +197,7 @@ router.get(
             github_owner: repo.github_owner,
             github_name: repo.github_name,
           },
+          base_branch: pr.base_branch,
           stack_id: pr.stack_id,
           stack_position: pr.stack_position,
           stack_size: pr.stack_size,

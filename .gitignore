@@ -8,3 +8,5 @@ repos/
 *.log
 frontend/dist/
 frontend/node_modules/
+.DS_Store
+.nvmrc

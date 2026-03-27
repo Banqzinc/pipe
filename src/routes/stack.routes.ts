@@ -47,7 +47,7 @@ router.post(
 
       await runRepo.save(run);
 
-      reviewRunner.enqueueRun(run.id).catch((err) => {
+      reviewRunner.enqueueRun(run.id, rootPr.repo_id).catch((err) => {
         console.error('Failed to enqueue stack run:', err);
       });
 
@@ -80,7 +80,7 @@ router.post(
       const contextPackBuilder = new ContextPackBuilder();
       const ctx = await contextPackBuilder.buildForStack(stackId, rootPr.repo_id);
 
-      const prompt = buildStackPrompt(ctx.perPrDiffs, ctx);
+      const prompt = await buildStackPrompt(ctx.perPrDiffs, ctx);
 
       res.json({
         prompt,
