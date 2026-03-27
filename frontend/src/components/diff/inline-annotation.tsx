@@ -101,6 +101,7 @@ export function InlineAnnotation({
           return (
             <div
               key={f.id}
+
               className={`border-l-4 ${borderColor} bg-card rounded-r overflow-hidden ${isRejected ? 'opacity-40' : ''}`}
             >
               <button
@@ -182,6 +183,7 @@ export function InlineAnnotation({
           return (
             <div
               key={`comment-${t.root_comment_id}-${i}`}
+
               className={`border-l-4 border-l-gray-600 bg-card rounded-r overflow-hidden ${t.is_resolved ? 'opacity-40' : ''}`}
             >
               <button

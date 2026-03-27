@@ -535,8 +535,8 @@ function RunPage() {
         </div>
       )}
 
-      {/* Main content */}
-      <div className="px-6 py-6 space-y-6">
+      {/* Main content — pb-36 clears the fixed PostBar + ChatPanel at the bottom */}
+      <div className="px-6 py-6 pb-36 space-y-6">
         {/* Stale banner */}
         {isStale && (
           <StaleBanner
