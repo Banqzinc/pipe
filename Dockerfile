@@ -9,7 +9,7 @@ RUN npm ci --include=dev
 
 # Install frontend dependencies
 COPY frontend/package.json frontend/package-lock.json ./frontend/
-RUN cd frontend && npm ci
+RUN cd frontend && npm ci --include=dev
 
 # Copy source and build
 COPY . .
