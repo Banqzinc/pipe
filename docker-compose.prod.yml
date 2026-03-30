@@ -1,0 +1,55 @@
+# Production docker-compose for Coolify deployment
+# Coolify manages: SSL, reverse proxy, environment variables, auto-deploy
+#
+# Required env vars (set in Coolify UI):
+#   DATABASE_URL          - postgres://pipe:pipe@db:5432/pipe
+#   JWT_SECRET            - min 16 chars
+#   PIPE_ENCRYPTION_KEY   - 64 hex chars
+#   PIPE_ORIGIN           - https://pipe.yourdomain.com
+#   PIPE_API_KEY          - API key for CLI auth
+#   GOOGLE_CLIENT_ID      - Google OAuth client ID
+#   PIPE_ALLOWED_DOMAINS  - e.g. yourdomain.com
+#   GH_TOKEN              - GitHub fine-grained PAT (for gh CLI)
+#
+# Claude CLI auth is stored in the claude_auth volume.
+# After first deploy, run:
+#   docker exec -it <pipe-container> claude login
+# Open the URL in your browser to authenticate with Claude Max.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3100:3100"
+    environment:
+      - DATABASE_URL=postgres://pipe:${POSTGRES_PASSWORD:-pipe}@db:5432/pipe
+      - NODE_ENV=production
+      - PIPE_PORT=3100
+      - PIPE_REPOS_DIR=/app/repos
+    volumes:
+      - pipe_repos:/app/repos
+      - claude_auth:/root/.claude
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: pipe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipe}
+      POSTGRES_DB: pipe
+    volumes:
+      - pipe_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipe -d pipe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pipe_pgdata:
+  pipe_repos:
+  claude_auth:

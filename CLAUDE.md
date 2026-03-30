@@ -115,6 +115,53 @@ All env vars are validated via Zod in `src/config.ts`:
 - Test files live alongside source: `src/**/*.test.ts`
 - Run: `npm test` or `npm run test:watch`
 
+## Production Deployment (Hetzner + Coolify)
+
+### Files
+
+- `Dockerfile` — Multi-stage build: Node 22 + Claude CLI + git + gh CLI
+- `docker-compose.prod.yml` — App + PostgreSQL with persistent volumes
+- `.dockerignore` — Excludes node_modules, dist, repos, .env
+
+### Coolify Setup
+
+1. Create a new service in Coolify pointing to this repo
+2. Set **Build Pack** to Docker Compose, using `docker-compose.prod.yml`
+3. Set environment variables in Coolify UI (see `docker-compose.prod.yml` comments)
+4. Deploy
+
+### Claude CLI Authentication (one-time)
+
+Claude CLI uses your Claude Max subscription (no API key needed):
+
+```bash
+# SSH into Hetzner server
+ssh your-server
+
+# Exec into the running container
+docker exec -it <pipe-container> claude login
+
+# It prints a URL — open it in your local browser
+# Authenticate with your Claude Max account
+# Tokens are stored in the claude_auth volume and auto-refresh
+```
+
+### Persistent Volumes
+
+- `pipe_pgdata` — PostgreSQL data
+- `pipe_repos` — Cloned repositories for review context
+- `claude_auth` — Claude CLI OAuth tokens (survives container restarts)
+
+### Connecting Repos (post-deploy)
+
+From your local machine with `gh` authenticated:
+
+```bash
+npm run build:cli
+npx pipe login                                        # Point to production URL
+npx pipe repo add --owner Banqzinc                    # With webhook for auto-sync
+```
+
 ## Key Patterns
 
 - Entities use UUID primary keys
@@ -122,4 +169,5 @@ All env vars are validated via Zod in `src/config.ts`:
 - Logging via Pino (`src/lib/logger.ts`)
 - Custom errors extend `AppError` (`src/lib/errors.ts`)
 - TypeORM with PostgreSQL for persistence
+- Migrations auto-run on server startup
 - SWC for fast TypeScript compilation

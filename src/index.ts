@@ -69,6 +69,15 @@ app.use(errorMiddleware);
 async function start() {
   await AppDataSource.initialize();
   logger.info('Database connected');
+
+  // Auto-run pending migrations on startup
+  const pending = await AppDataSource.showMigrations();
+  if (pending) {
+    logger.info('Running pending migrations...');
+    await AppDataSource.runMigrations();
+    logger.info('Migrations complete');
+  }
+
   app.listen(config.port, () => {
     logger.info(`Pipe API listening on port ${config.port}`);
   });
