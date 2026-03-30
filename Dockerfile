@@ -3,9 +3,9 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install backend dependencies
+# Install all dependencies (including devDependencies needed for build)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 # Install frontend dependencies
 COPY frontend/package.json frontend/package-lock.json ./frontend/
@@ -40,11 +40,6 @@ RUN npm ci --omit=dev
 # Copy built output from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/frontend/dist ./frontend/dist
-
-# Copy source files needed for migrations (TypeORM needs entity/migration TS or JS)
-COPY --from=builder /app/dist/migrations ./dist/migrations
-COPY --from=builder /app/dist/entities ./dist/entities
-COPY --from=builder /app/dist/db ./dist/db
 
 # Create repos directory
 RUN mkdir -p /app/repos
