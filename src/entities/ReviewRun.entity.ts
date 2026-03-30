@@ -11,9 +11,9 @@ import {
   Index,
 } from 'typeorm';
 import { RunStatus } from './enums';
-import { PullRequest } from './PullRequest.entity';
-import { Finding } from './Finding.entity';
-import { ReviewPost } from './ReviewPost.entity';
+import type { PullRequest } from './PullRequest.entity';
+import type { Finding } from './Finding.entity';
+import type { ReviewPost } from './ReviewPost.entity';
 
 @Entity()
 @Index(['pr_id', 'created_at'])
@@ -73,21 +73,21 @@ export class ReviewRun {
   updated_at!: Date;
 
   @ManyToOne(
-    () => PullRequest,
-    (pr) => pr.reviewRuns,
+    () => require('./PullRequest.entity').PullRequest,
+    (pr: PullRequest) => pr.reviewRuns,
   )
   @JoinColumn({ name: 'pr_id' })
   pullRequest!: PullRequest;
 
   @OneToMany(
-    () => Finding,
-    (finding) => finding.reviewRun,
+    () => require('./Finding.entity').Finding,
+    (finding: Finding) => finding.reviewRun,
   )
   findings!: Finding[];
 
   @OneToOne(
-    () => ReviewPost,
-    (post) => post.reviewRun,
+    () => require('./ReviewPost.entity').ReviewPost,
+    (post: ReviewPost) => post.reviewRun,
   )
   reviewPost!: ReviewPost;
 }

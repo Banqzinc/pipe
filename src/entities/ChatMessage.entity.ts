@@ -6,7 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { ReviewRun } from './ReviewRun.entity';
+import type { ReviewRun } from './ReviewRun.entity';
 
 @Entity('chat_messages')
 export class ChatMessage {
@@ -25,7 +25,7 @@ export class ChatMessage {
   @CreateDateColumn()
   created_at!: Date;
 
-  @ManyToOne(() => ReviewRun)
+  @ManyToOne(() => require('./ReviewRun.entity').ReviewRun)
   @JoinColumn({ name: 'run_id' })
   reviewRun!: ReviewRun;
 }
