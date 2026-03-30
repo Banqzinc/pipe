@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button.tsx';
-import { cn } from '@/lib/utils.ts';
 import { useChatMessages } from '../../api/queries/chat.ts';
 import type { ChatMessage } from '../../api/queries/chat.ts';
 import { useSendChatMessage } from '../../api/mutations/chat.ts';

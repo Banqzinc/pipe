@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { SplitButton } from '../../components/common/split-button.tsx';
 import { PromptPreviewModal } from '../../components/common/prompt-preview-modal.tsx';
@@ -64,8 +63,6 @@ function RunPage() {
   const approvePR = useApprovePR(run?.pr.id ?? '');
   const replyToComment = useReplyToComment(run?.pr.id ?? '');
   const resolveThread = useResolveThread(run?.pr.id ?? '');
-
-  const queryClient = useQueryClient();
 
   // SSE stream for live output
   const isInProgress = run?.status === 'queued' || run?.status === 'running';
