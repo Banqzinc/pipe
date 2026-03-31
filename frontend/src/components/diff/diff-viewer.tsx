@@ -3,7 +3,9 @@ import type { DiffFile } from '../../api/queries/diff.ts';
 import type { FindingItem } from '../../api/queries/findings.ts';
 import type { CommentThread, CommentReply } from '../../api/queries/comments.ts';
 import { buildAnnotationMap } from '../../lib/diff-annotations.ts';
+import { parsePatch } from '../../lib/diff-parser.ts';
 import { DiffFileSection } from './diff-file-section.tsx';
+import { InlineAnnotation } from './inline-annotation.tsx';
 import { DiscussionComments } from './discussion-comments.tsx';
 
 interface DiffViewerProps {
@@ -21,6 +23,7 @@ interface DiffViewerProps {
   onEditCancel: () => void;
   onReplyToComment?: (commentId: number, body: string) => void;
   onResolveThread?: (commentId: number, threadNodeId: string, resolved: boolean) => void;
+  onDiscuss?: (prefill: string) => void;
 }
 
 export function DiffViewer({
@@ -38,11 +41,32 @@ export function DiffViewer({
   onEditCancel,
   onReplyToComment,
   onResolveThread,
+  onDiscuss,
 }: DiffViewerProps) {
   const annotationMap = useMemo(
     () => buildAnnotationMap(findings, commentThreads),
     [findings, commentThreads],
   );
+
+  // Compute findings that can't be placed inline (their line isn't in any diff hunk)
+  const nonInlineFindings = useMemo(() => {
+    // Build a set of all file+line combos that exist in the diff
+    const diffLines = new Set<string>();
+    for (const file of files) {
+      if (!file.patch) continue;
+      const hunks = parsePatch(file.patch);
+      for (const hunk of hunks) {
+        for (const line of hunk.lines) {
+          if (line.newLineNumber != null) {
+            diffLines.add(`${file.filename}:${line.newLineNumber}`);
+          }
+        }
+      }
+    }
+    return findings.filter(
+      (f) => !diffLines.has(`${f.file_path}:${f.start_line}`),
+    );
+  }, [findings, files]);
 
   const [allCollapsed, setAllCollapsed] = useState(false);
 
@@ -82,6 +106,32 @@ export function DiffViewer({
         <DiscussionComments comments={issueComments} />
       )}
 
+      {/* Findings not in diff (lines outside changed hunks) */}
+      {nonInlineFindings.length > 0 && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <div className="px-4 py-2 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+            General findings ({nonInlineFindings.length}) — lines not in diff
+          </div>
+          <div className="divide-y divide-border">
+            {nonInlineFindings.map((f) => (
+              <InlineAnnotation
+                key={f.id}
+                annotations={[{ kind: 'finding', finding: f }]}
+                onAccept={onAccept}
+                onReject={onReject}
+                onStartEdit={onStartEdit}
+                editingId={editingId}
+                editBody={editBody}
+                onEditBodyChange={onEditBodyChange}
+                onEditSave={onEditSave}
+                onEditCancel={onEditCancel}
+                onDiscuss={onDiscuss}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* File sections */}
       {files.map((file) => (
         <DiffFileSection
@@ -98,6 +148,7 @@ export function DiffViewer({
           onEditCancel={onEditCancel}
           onReplyToComment={onReplyToComment}
           onResolveThread={onResolveThread}
+          onDiscuss={onDiscuss}
         />
       ))}
     </div>

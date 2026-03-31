@@ -29,7 +29,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "bin": {
     "pipe": "./dist/cli/index.js"

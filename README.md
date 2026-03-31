@@ -137,6 +137,79 @@ pipe repo remove owner/name
 | `npm run migration:revert` | Revert last migration |
 | `npm run migration:generate` | Generate migration from entity changes |
 
+## Production Deployment
+
+Pipe ships with a `Dockerfile` and `docker-compose.prod.yml` for production self-hosting. Any Docker-capable platform works (Coolify, Railway, bare VPS, etc.).
+
+### Requirements
+
+- A server with Docker installed (recommended: 4 vCPU, 8 GB RAM)
+- A domain with DNS pointing to your server
+- A [Claude Max subscription](https://claude.ai) (Pipe uses Claude CLI, not the API — no per-token cost)
+- A GitHub fine-grained PAT with **Contents: Read** and **Pull Requests: Read & Write** on the repos you want to review
+- A Google OAuth client ID (see [Google OAuth Setup](#google-oauth-setup))
+
+### 1. Deploy with Docker Compose
+
+```bash
+git clone https://github.com/Banqzinc/pipe.git
+cd pipe
+```
+
+Copy `docker-compose.prod.yml` and set the required environment variables (in your deployment platform or a `.env` file):
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | `postgres://pipe:<password>@db:5432/pipe` |
+| `JWT_SECRET` | Random string, min 16 characters |
+| `PIPE_ENCRYPTION_KEY` | 64 hex characters (`openssl rand -hex 32`) |
+| `PIPE_ORIGIN` | Your production URL, e.g. `https://pipe.yourdomain.com` |
+| `PIPE_API_KEY` | API key for CLI auth (`openssl rand -base64 32`) |
+| `GH_TOKEN` | GitHub fine-grained PAT (for `gh` CLI used during reviews) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `PIPE_ALLOWED_DOMAINS` | Comma-separated allowed email domains |
+| `NODE_ENV` | `production` |
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Migrations run automatically on startup.
+
+### 2. Authenticate Claude CLI (one-time)
+
+Claude CLI uses your Claude Max subscription via OAuth — no API key needed.
+
+```bash
+docker exec -it <pipe-container> claude login
+```
+
+It prints a URL — open it in your browser, authenticate with your Claude Max account, and paste the code back. Auth tokens persist in the `claude_auth` Docker volume and auto-refresh.
+
+### 3. Connect repositories
+
+From your local machine (where `gh` is authenticated):
+
+```bash
+npm run build:cli
+npx pipe login          # Enter your production URL and PIPE_API_KEY
+npx pipe repo add       # Lists your GitHub repos, creates webhook, syncs PRs
+```
+
+This creates a webhook on GitHub (for `pull_request` events) so new PRs are automatically synced.
+
+### Persistent Volumes
+
+| Volume | Mount Path | Purpose |
+|---|---|---|
+| `claude_auth` | `/root/.claude` | Claude CLI OAuth tokens (survives restarts) |
+| `pipe_repos` | `/app/repos` | Cloned repositories for review context |
+| `pipe_pgdata` | PostgreSQL default | Database data |
+
+### What's in the Docker image
+
+The production image includes Node.js 22, Claude CLI, `git`, and `gh` CLI. Claude CLI is the review engine — it reads the cloned repo, analyzes diffs, and produces structured findings. The `gh` CLI is used by Claude during reviews to fetch PR diffs.
+
 ## Architecture
 
 - **Backend:** Express + TypeORM + PostgreSQL

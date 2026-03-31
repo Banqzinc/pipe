@@ -10,6 +10,7 @@ export interface RunDetailPr {
     github_owner: string;
     github_name: string;
   };
+  base_branch: string;
   stack_id: string | null;
   stack_position: number | null;
   stack_size: number | null;
@@ -59,6 +60,7 @@ export interface RunDetail {
   head_sha: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'partial';
   is_self_review: boolean;
+  session_id: string | null;
   stack_id: string | null;
   stack_prs?: StackPr[];
   brief: Brief | null;

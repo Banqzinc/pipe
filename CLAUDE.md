@@ -38,7 +38,30 @@ frontend/           # React + Vite + TanStack app
 docker compose up -d          # Start PostgreSQL
 touch .env                    # Create empty .env for local overrides
 npm install
-npm run dev                   # Start dev server on port 3100
+npm run dev                   # Start dev server on port 3100 (runs migrations automatically)
+```
+
+Once the server is running, connect a repository:
+
+```bash
+npm run build:cli                                    # Build the CLI
+npx pipe repo add --owner Banqzinc --no-webhook      # Connect a repo (skip webhook for local dev)
+```
+
+Then open http://localhost:5173 and click **Sync PRs** to pull in open PRs.
+
+> **First time only:** Run `npx pipe login` to configure the server URL and API key. The config persists at `~/.config/pipe/config.json`.
+
+### Fresh Start (reset database)
+
+No need to run migrations manually — `npm run dev` runs them automatically on startup.
+
+```bash
+docker compose down -v        # Drop database volume (nukes all data)
+docker compose up -d          # Fresh PostgreSQL
+npm run dev                   # Start server (auto-runs migrations + seeds)
+npm run build:cli             # Rebuild CLI
+npx pipe repo add --owner Banqzinc --no-webhook      # Re-connect repos
 ```
 
 ### 1Password Integration
@@ -55,11 +78,16 @@ All env vars are validated via Zod in `src/config.ts`:
 - `PIPE_REPOS_DIR` — Directory for cloned repos (default: `./repos`)
 - `PIPE_PORT` — Server port (default: 3100)
 - `NODE_ENV` — development | production | test
+- `PIPE_ORIGIN` — Allowed CORS origin (default: http://localhost:5173)
+- `PIPE_API_KEY` — API key for CLI/bearer auth
+- `GOOGLE_CLIENT_ID` — Google OAuth client ID (for web login)
+- `PIPE_ALLOWED_DOMAINS` — Comma-separated allowed email domains
 
 ## Commands
 
 - `npm run dev` — Start dev server with hot reload (tsx)
-- `npm run build` — Compile with SWC
+- `npm run build` — Compile API + frontend with SWC
+- `npm run build:cli` — Compile CLI only (needed for `npx pipe` commands)
 - `npm start` — Run compiled output
 - `npm test` — Run tests (Vitest)
 - `npm run test:watch` — Run tests in watch mode
@@ -87,6 +115,53 @@ All env vars are validated via Zod in `src/config.ts`:
 - Test files live alongside source: `src/**/*.test.ts`
 - Run: `npm test` or `npm run test:watch`
 
+## Production Deployment (Hetzner + Coolify)
+
+### Files
+
+- `Dockerfile` — Multi-stage build: Node 22 + Claude CLI + git + gh CLI
+- `docker-compose.prod.yml` — App + PostgreSQL with persistent volumes
+- `.dockerignore` — Excludes node_modules, dist, repos, .env
+
+### Coolify Setup
+
+1. Create a new service in Coolify pointing to this repo
+2. Set **Build Pack** to Docker Compose, using `docker-compose.prod.yml`
+3. Set environment variables in Coolify UI (see `docker-compose.prod.yml` comments)
+4. Deploy
+
+### Claude CLI Authentication (one-time)
+
+Claude CLI uses your Claude Max subscription (no API key needed):
+
+```bash
+# SSH into Hetzner server
+ssh your-server
+
+# Exec into the running container
+docker exec -it <pipe-container> claude login
+
+# It prints a URL — open it in your local browser
+# Authenticate with your Claude Max account
+# Tokens are stored in the claude_auth volume and auto-refresh
+```
+
+### Persistent Volumes
+
+- `pipe_pgdata` — PostgreSQL data
+- `pipe_repos` — Cloned repositories for review context
+- `claude_auth` — Claude CLI OAuth tokens (survives container restarts)
+
+### Connecting Repos (post-deploy)
+
+From your local machine with `gh` authenticated:
+
+```bash
+npm run build:cli
+npx pipe login                                        # Point to production URL
+npx pipe repo add --owner Banqzinc                    # With webhook for auto-sync
+```
+
 ## Key Patterns
 
 - Entities use UUID primary keys
@@ -94,4 +169,5 @@ All env vars are validated via Zod in `src/config.ts`:
 - Logging via Pino (`src/lib/logger.ts`)
 - Custom errors extend `AppError` (`src/lib/errors.ts`)
 - TypeORM with PostgreSQL for persistence
+- Migrations auto-run on server startup
 - SWC for fast TypeScript compilation

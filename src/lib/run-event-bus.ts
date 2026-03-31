@@ -5,7 +5,9 @@ export type RunEvent =
   | { type: 'cli_text'; text: string }
   | { type: 'cli_thinking'; text: string }
   | { type: 'done'; status: string; error_message?: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'chat_text'; text: string }
+  | { type: 'chat_done' };
 
 export interface BufferedEvent {
   eventId: number;
@@ -37,7 +39,7 @@ class RunEventBus {
 
     this.emitter.emit(`run:${runId}`, buffered);
 
-    if (event.type === 'done') {
+    if (event.type === 'done' || event.type === 'chat_done') {
       this.scheduleCleanup(runId);
     }
 

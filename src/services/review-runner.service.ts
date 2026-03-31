@@ -64,31 +64,44 @@ export function extractStreamContent(
 }
 
 export class ReviewRunner {
-  private queue: string[] = []; // run IDs
-  private processing = false;
+  // Per-repo queues: runs on different repos execute in parallel,
+  // runs on the same repo are sequential (shared git working directory).
+  private repoQueues = new Map<string, { queue: string[]; processing: boolean }>();
 
-  async enqueueRun(runId: string): Promise<void> {
-    logger.info({ runId }, 'Enqueueing run');
-    this.queue.push(runId);
-    if (!this.processing) {
-      // Fire-and-forget: start processing the queue
-      this.processQueue().catch((err) => {
-        logger.error({ err }, 'Queue processing failed unexpectedly');
+  async enqueueRun(runId: string, repoId: string): Promise<void> {
+    logger.info({ runId, repoId }, 'Enqueueing run');
+
+    let entry = this.repoQueues.get(repoId);
+    if (!entry) {
+      entry = { queue: [], processing: false };
+      this.repoQueues.set(repoId, entry);
+    }
+
+    entry.queue.push(runId);
+    if (!entry.processing) {
+      // Fire-and-forget: start processing this repo's queue
+      this.processRepoQueue(repoId).catch((err) => {
+        logger.error({ err, repoId }, 'Repo queue processing failed unexpectedly');
       });
     }
   }
 
-  private async processQueue(): Promise<void> {
-    if (this.processing) return;
-    this.processing = true;
+  private async processRepoQueue(repoId: string): Promise<void> {
+    const entry = this.repoQueues.get(repoId);
+    if (!entry || entry.processing) return;
+    entry.processing = true;
 
     try {
-      while (this.queue.length > 0) {
-        const runId = this.queue.shift()!;
+      while (entry.queue.length > 0) {
+        const runId = entry.queue.shift()!;
         await this.processRunWithRetry(runId);
       }
     } finally {
-      this.processing = false;
+      entry.processing = false;
+      // Clean up empty entries to prevent memory leaks
+      if (entry.queue.length === 0) {
+        this.repoQueues.delete(repoId);
+      }
     }
   }
 
@@ -166,7 +179,7 @@ export class ReviewRunner {
       prompt = run.prompt;
       logger.info({ runId }, 'Using user-supplied custom prompt');
     } else if (isStackReview && 'perPrDiffs' in contextPack) {
-      prompt = buildStackPrompt(contextPack.perPrDiffs, contextPack as StackContextPack);
+      prompt = await buildStackPrompt(contextPack.perPrDiffs, contextPack as StackContextPack);
       await runRepo.update(runId, { prompt });
     } else {
       // Check for prior review posts on this PR to include follow-up context
@@ -350,6 +363,8 @@ export class ReviewRunner {
       let stderr = '';
       let lastFlushedLength = 0;
       let lineBuffer = '';
+      let sessionId: string | null = null;
+      let lineCount = 0;
 
       // Flush accumulated display text to DB every 5 seconds
       const flushInterval = setInterval(() => {
@@ -388,8 +403,24 @@ export class ReviewRunner {
 
         for (const line of lines) {
           if (!line.trim()) continue;
+          lineCount++;
+          if (lineCount <= 3) {
+            logger.info({ runId, lineNum: lineCount, line: line.slice(0, 200) }, 'CLI stream line');
+          }
           try {
             const event = JSON.parse(line);
+
+            // Extract session_id from early system events
+            if (!sessionId) {
+              // Check top-level and nested locations
+              const sid = event.session_id ?? event.sessionId;
+              if (sid) {
+                sessionId = sid;
+                logger.info({ runId, sessionId }, 'Captured session_id from CLI stream');
+              } else if (event.type === 'system' || event.type === 'init') {
+                logger.info({ runId, eventType: event.type, eventKeys: Object.keys(event) }, 'System event without session_id');
+              }
+            }
 
             const content = extractStreamContent(event);
             if (content) {
@@ -411,7 +442,7 @@ export class ReviewRunner {
         stderr += chunk.toString();
       });
 
-      child.on('close', (code) => {
+      child.on('close', async (code) => {
         clearInterval(flushInterval);
         clearTimeout(timeout);
 
@@ -419,11 +450,23 @@ export class ReviewRunner {
         if (lineBuffer.trim()) {
           try {
             const event = JSON.parse(lineBuffer);
+            if (!sessionId && event.session_id) {
+              sessionId = event.session_id;
+            }
             if (event.type === 'result') {
               resultLine = lineBuffer;
             }
           } catch {
             // ignore
+          }
+        }
+
+        // Persist session_id if captured
+        if (sessionId) {
+          try {
+            await runRepo.update(runId, { session_id: sessionId });
+          } catch (err) {
+            logger.warn({ runId, err }, 'Failed to persist session_id');
           }
         }
 
@@ -496,7 +539,7 @@ export class ReviewRunner {
 
 // --- Stack Prompt Builder ---
 
-export function buildStackPrompt(
+export async function buildStackPrompt(
   stackPrs: Array<{
     prId: string;
     prNumber: number;
@@ -504,7 +547,7 @@ export function buildStackPrompt(
     title: string;
   }>,
   ctx: StackContextPack,
-): string {
+): Promise<string> {
   const parts: string[] = [];
 
   parts.push(
@@ -551,10 +594,36 @@ export function buildStackPrompt(
     }
   }
 
+  // Load output format from prompt template (same schema as single-PR reviews)
+  const templateRepo = AppDataSource.getRepository(PromptTemplate);
+  const template = await templateRepo.findOneBy({ name: 'default' });
+
+  let outputFormat = '';
+  if (template) {
+    const sections = template.sections;
+    if (sections && sections.length > 0) {
+      const outputSection = sections.find(
+        (s: { key: string; content: string; enabled: boolean }) => s.key === 'output_format' && s.enabled,
+      );
+      if (outputSection) {
+        outputFormat = outputSection.content;
+      }
+    }
+    if (!outputFormat && template.output_instructions) {
+      outputFormat = template.output_instructions;
+    }
+  }
+
   parts.push('');
-  parts.push('## Output Instructions');
+  if (outputFormat) {
+    parts.push(outputFormat);
+  } else {
+    parts.push('## Output Instructions');
+    parts.push('Output a JSON object with "brief" and "findings" fields.');
+  }
+  parts.push('');
   parts.push(
-    'Output a JSON object with the same schema as a single-PR review, but each finding MUST include "pr_number": <number> to attribute it to the correct PR.',
+    'IMPORTANT: Each finding MUST include "pr_number": <number> to attribute it to the correct PR in the stack.',
   );
   parts.push(
     'Look for: cross-PR inconsistencies, missing integration points, duplicated code across PRs, and issues that only become visible when viewing the full stack.',

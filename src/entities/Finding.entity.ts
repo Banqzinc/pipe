@@ -9,8 +9,8 @@ import {
   Index,
 } from 'typeorm';
 import { FindingSeverity, FindingStatus } from './enums';
-import { ReviewRun } from './ReviewRun.entity';
-import { PullRequest } from './PullRequest.entity';
+import type { ReviewRun } from './ReviewRun.entity';
+import type { PullRequest } from './PullRequest.entity';
 
 @Entity()
 @Index(['run_id', 'toolkit_order'])
@@ -71,13 +71,13 @@ export class Finding {
   updated_at!: Date;
 
   @ManyToOne(
-    () => ReviewRun,
-    (run) => run.findings,
+    () => require('./ReviewRun.entity').ReviewRun,
+    (run: ReviewRun) => run.findings,
   )
   @JoinColumn({ name: 'run_id' })
   reviewRun!: ReviewRun;
 
-  @ManyToOne(() => PullRequest, { nullable: true })
+  @ManyToOne(() => require('./PullRequest.entity').PullRequest, { nullable: true })
   @JoinColumn({ name: 'pr_id' })
   pullRequest!: PullRequest | null;
 }
