@@ -30,21 +30,18 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
           darkMode: true,
           background: '#0f172a',
           primaryColor: '#334155',
-          primaryTextColor: '#e2e8f0',
           primaryBorderColor: '#475569',
           lineColor: '#64748b',
           secondaryColor: '#1e293b',
           tertiaryColor: '#0f172a',
-          nodeTextColor: '#e2e8f0',
           mainBkg: '#334155',
           nodeBorder: '#64748b',
           clusterBkg: '#1e293b',
           clusterBorder: '#475569',
-          titleColor: '#e2e8f0',
           edgeLabelBackground: '#1e293b',
         },
         flowchart: {
-          htmlLabels: false,
+          htmlLabels: true,
           curve: 'basis',
           rankSpacing: 60,
           nodeSpacing: 40,
@@ -61,6 +58,18 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
             const wrapper = document.createElement('div');
             wrapper.innerHTML = sanitized;
             containerRef.current.appendChild(wrapper);
+
+            // Post-process: force all text to be readable on dark backgrounds
+            const textEls = containerRef.current.querySelectorAll('text, tspan');
+            textEls.forEach((el) => {
+              el.setAttribute('fill', '#e2e8f0');
+            });
+            const htmlEls = containerRef.current.querySelectorAll(
+              'span, .nodeLabel, .edgeLabel, .label, foreignObject div, foreignObject p',
+            );
+            htmlEls.forEach((el) => {
+              (el as HTMLElement).style.color = '#e2e8f0';
+            });
           }
         })
         .catch((err) => {
@@ -84,12 +93,7 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-x-auto [&_text]:!fill-slate-200 [&_.nodeLabel]:!text-slate-200 [&_.edgeLabel]:!text-slate-300 [&_.label]:!text-slate-200"
-    />
-  );
+  return <div ref={containerRef} className="overflow-x-auto" />;
 }
 
 interface ArchitectureReviewPanelProps {

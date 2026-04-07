@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../db/data-source';
+import { loadConfig } from '../config';
 import { ChatMessage } from '../entities/ChatMessage.entity';
 import { PullRequest } from '../entities/PullRequest.entity';
 import { ReviewRun } from '../entities/ReviewRun.entity';
@@ -365,7 +367,10 @@ router.post(
       const runId = req.params.id as string;
       const runRepo = AppDataSource.getRepository(ReviewRun);
       const msgRepo = AppDataSource.getRepository(ChatMessage);
-      const run = await runRepo.findOne({ where: { id: runId } });
+      const run = await runRepo.findOne({
+        where: { id: runId },
+        relations: ['pullRequest', 'pullRequest.repo'],
+      });
 
       if (!run) throw new AppError('Run not found', 404, 'NOT_FOUND');
       if (!run.session_id) {
@@ -406,8 +411,12 @@ router.post(
         'Read,Grep,Glob,LS',
       ];
 
-      logger.info({ runId: run.id, sessionId: run.session_id, args }, 'Spawning chat CLI');
-      const child = spawn('claude', args, { cwd: process.cwd() });
+      const repo = run.pullRequest.repo;
+      const config = loadConfig();
+      const repoDir = path.join(config.reposDir, repo.github_owner, repo.github_name);
+
+      logger.info({ runId: run.id, sessionId: run.session_id, repoDir, args }, 'Spawning chat CLI');
+      const child = spawn('claude', args, { cwd: repoDir });
       let responseText = '';
 
       child.stderr.on('data', (chunk: Buffer) => {
