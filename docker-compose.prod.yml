@@ -1,15 +1,14 @@
 # Production docker-compose for Coolify deployment
-# Coolify manages: SSL, reverse proxy, environment variables, auto-deploy
+# Coolify manages: SSL, reverse proxy, auto-deploy
 #
+# Secrets are resolved at runtime from 1Password via `op run`.
 # Required env vars (set in Coolify UI):
-#   DATABASE_URL          - postgres://pipe:pipe@db:5432/pipe
-#   JWT_SECRET            - min 16 chars
-#   PIPE_ENCRYPTION_KEY   - 64 hex chars
-#   PIPE_ORIGIN           - https://pipe.yourdomain.com
-#   PIPE_API_KEY          - API key for CLI auth
-#   GOOGLE_CLIENT_ID      - Google OAuth client ID
-#   PIPE_ALLOWED_DOMAINS  - e.g. yourdomain.com
-#   GH_TOKEN              - GitHub fine-grained PAT (for gh CLI)
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password service account token for the pipe_production vault
+#   DEPLOY_ENV               - "production" (used by env.default to select the correct vault)
+#   NODE_ENV                 - "production"
+#
+# All other secrets (DATABASE_URL, JWT_SECRET, etc.) live in the
+# pipe_$DEPLOY_ENV 1Password vault and are resolved via env.default.
 #
 # Claude CLI auth is stored in the claude_auth volume.
 # After first deploy, run:
