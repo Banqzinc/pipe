@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import type { ArchitectureReview } from '../../api/queries/runs.ts';
+import { CollapsibleSection } from '../common/collapsible-section.tsx';
 
 const assessmentColors: Record<string, string> = {
   good: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -13,34 +14,6 @@ const severityColors: Record<string, string> = {
   medium: 'text-yellow-400',
   low: 'text-blue-400',
 };
-
-function CollapsibleSection({
-  title,
-  colorCls,
-  defaultOpen,
-  children,
-}: {
-  title: string;
-  colorCls: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen ?? false);
-
-  return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium ${colorCls} hover:bg-gray-800/50 transition-colors`}
-      >
-        <span>{title}</span>
-        <span className="text-gray-500">{open ? '\u25B2' : '\u25BC'}</span>
-      </button>
-      {open && <div className="px-3 py-2 space-y-1">{children}</div>}
-    </div>
-  );
-}
 
 function MermaidDiagram({ source, id }: { source: string; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
