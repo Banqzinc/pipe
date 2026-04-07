@@ -83,6 +83,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           latestRunData = {
             id: latestRun.id,
             status: latestRun.status,
+            head_sha: latestRun.head_sha,
             is_self_review: latestRun.is_self_review,
             risk_signals: latestRun.risk_signals,
             findings_count: counts,
@@ -124,20 +125,23 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Apply filter after enrichment (needs latest_run info)
     let filtered = result;
     if (filter === 'needs_review') {
-      // No run or latest run incomplete; exclude drafts
+      // No run, latest run incomplete, or review is stale (new commits since run); exclude drafts
       filtered = result.filter(
         (pr) =>
           !pr.is_draft &&
           (!pr.latest_run ||
-            !['completed', 'partial'].includes(pr.latest_run.status)),
+            !['completed', 'partial'].includes(pr.latest_run.status) ||
+            pr.latest_run.head_sha !== pr.head_sha),
       );
     } else if (filter === 'in_progress') {
-      // Latest run exists with findings, not yet marked completed
+      // Latest run exists with findings, not yet marked completed,
+      // and the run is still for the current HEAD (not stale)
       filtered = result.filter(
         (pr) =>
           !pr.review_completed_at &&
           pr.latest_run &&
-          pr.latest_run.findings_count.total > 0,
+          pr.latest_run.findings_count.total > 0 &&
+          pr.latest_run.head_sha === pr.head_sha,
       );
     } else if (filter === 'completed') {
       // Explicitly marked as completed by user

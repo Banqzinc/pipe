@@ -213,6 +213,7 @@ router.get(
         stack_id: run.stack_id,
         stack_prs: stackPrsData,
         brief: run.brief,
+        architecture_review: run.architecture_review,
         risk_signals: run.risk_signals,
         error_message: run.error_message,
         prompt: run.prompt,

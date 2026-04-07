@@ -51,6 +51,59 @@ const SEVERITY_ORDER: Record<FindingSeverity, number> = {
   [FindingSeverity.Nitpick]: 3,
 };
 
+function buildArchitectureMarkdown(
+  archReview: Record<string, unknown>,
+): string {
+  const arch = archReview as {
+    summary?: string;
+    concerns?: Array<{ title: string; severity: string; description: string; affected_files?: string[] }>;
+    patterns?: Array<{ name: string; assessment: string; description: string }>;
+    module_diagram?: string | null;
+  };
+
+  const parts: string[] = [];
+  parts.push('## Architecture Review');
+  parts.push('');
+
+  if (arch.summary) {
+    parts.push(arch.summary);
+    parts.push('');
+  }
+
+  if (arch.patterns && arch.patterns.length > 0) {
+    parts.push('### Patterns');
+    for (const p of arch.patterns) {
+      const icon = p.assessment === 'good' ? '&#9989;' : p.assessment === 'problematic' ? '&#10060;' : '&#9888;&#65039;';
+      parts.push(`- ${icon} **${p.name}** (${p.assessment}) — ${p.description}`);
+    }
+    parts.push('');
+  }
+
+  if (arch.concerns && arch.concerns.length > 0) {
+    parts.push('### Architectural Concerns');
+    for (const c of arch.concerns) {
+      const badge = c.severity === 'high' ? '&#128308;' : c.severity === 'medium' ? '&#128992;' : '&#128309;';
+      parts.push(`${badge} **${c.title}**`);
+      parts.push('');
+      parts.push(c.description);
+      if (c.affected_files && c.affected_files.length > 0) {
+        parts.push(`Files: ${c.affected_files.map((f) => `\`${f}\``).join(', ')}`);
+      }
+      parts.push('');
+    }
+  }
+
+  if (arch.module_diagram) {
+    parts.push('### Module Dependencies');
+    parts.push('```mermaid');
+    parts.push(arch.module_diagram);
+    parts.push('```');
+    parts.push('');
+  }
+
+  return parts.join('\n');
+}
+
 export class PostingService {
   async postToGitHub(runId: string): Promise<{
     review_id: number;
@@ -113,9 +166,16 @@ export class PostingService {
     // 7. Build GitHub review body
     const { inlineComments, bodyComments } = this.buildReviewComments(findings, diffLineMap, runId);
 
-    const body = bodyComments.length > 0
-      ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
-      : '';
+    const bodyParts: string[] = [];
+    if (run.architecture_review) {
+      bodyParts.push(buildArchitectureMarkdown(run.architecture_review));
+    }
+    if (bodyComments.length > 0) {
+      bodyParts.push(
+        `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`,
+      );
+    }
+    const body = bodyParts.join('\n\n---\n\n');
 
     // 8. Post review
     let review;
@@ -193,6 +253,7 @@ export class PostingService {
     let totalPosted = 0;
     let lastReviewId = 0;
     let lastReviewUrl = '';
+    let isFirstPr = true;
 
     // Post to each PR separately
     for (const [prId, prFindings] of prGroups) {
@@ -214,9 +275,17 @@ export class PostingService {
       const diffLineMap = parseDiffLineMap(diff);
       const { inlineComments, bodyComments } = this.buildReviewComments(prFindings, diffLineMap, runId);
 
-      const body = bodyComments.length > 0
-        ? `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`
-        : '';
+      const bodyParts: string[] = [];
+      if (isFirstPr && run.architecture_review) {
+        bodyParts.push(buildArchitectureMarkdown(run.architecture_review));
+      }
+      if (bodyComments.length > 0) {
+        bodyParts.push(
+          `### Additional findings (lines not in diff)\n\n${bodyComments.join('\n\n---\n\n')}`,
+        );
+      }
+      const body = bodyParts.join('\n\n---\n\n');
+      isFirstPr = false;
 
       try {
         const review = await client.createReview(
@@ -354,6 +423,12 @@ export class PostingService {
     const lines: string[] = [];
     lines.push(`# Self-Review Findings — PR #${pr.github_pr_number}: ${pr.title}`);
     lines.push('');
+
+    // Architecture review section (if available)
+    if (run.architecture_review) {
+      lines.push(buildArchitectureMarkdown(run.architecture_review));
+      lines.push('');
+    }
 
     const severityLabels: [FindingSeverity, string][] = [
       [FindingSeverity.Critical, 'Critical'],

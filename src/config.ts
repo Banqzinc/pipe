@@ -9,6 +9,7 @@ const ConfigSchema = z.object({
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
   origin: z.string().default('http://localhost:5173'),
   apiKey: z.string().min(16).optional(),
+  ghToken: z.string().min(1).optional(),
   googleClientId: z.string().min(1),
   allowedDomains: z.string().min(1),
 });
@@ -25,6 +26,7 @@ export function loadConfig(): Config {
     nodeEnv: process.env.NODE_ENV,
     origin: process.env.PIPE_ORIGIN,
     apiKey: process.env.PIPE_API_KEY || undefined,
+    ghToken: process.env.GH_TOKEN || undefined,
     googleClientId: process.env.GOOGLE_CLIENT_ID,
     allowedDomains: process.env.PIPE_ALLOWED_DOMAINS,
   });

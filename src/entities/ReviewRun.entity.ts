@@ -43,6 +43,9 @@ export class ReviewRun {
   brief!: Record<string, unknown> | null;
 
   @Column({ type: 'jsonb', nullable: true })
+  architecture_review!: Record<string, unknown> | null;
+
+  @Column({ type: 'jsonb', nullable: true })
   risk_signals!: Record<string, unknown> | null;
 
   @Column({ type: 'text', nullable: true })

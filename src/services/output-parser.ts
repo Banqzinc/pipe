@@ -24,20 +24,43 @@ const FindingSchema = z.object({
   pr_number: z.number().nullable().default(null),
 });
 
+const ArchPatternSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  assessment: z.enum(['good', 'mixed', 'problematic']),
+});
+
+const ArchConcernSchema = z.object({
+  title: z.string(),
+  severity: z.enum(['high', 'medium', 'low']),
+  description: z.string(),
+  affected_files: z.array(z.string()).default([]),
+});
+
+const ArchitectureReviewSchema = z.object({
+  summary: z.string(),
+  patterns: z.array(ArchPatternSchema).default([]),
+  concerns: z.array(ArchConcernSchema).default([]),
+  module_diagram: z.string().nullable().default(null),
+});
+
 const ToolkitOutputSchema = z.object({
   brief: BriefSchema,
   findings: z.array(FindingSchema),
+  architecture: ArchitectureReviewSchema.optional(),
 });
 
 // --- Types ---
 
 export type Brief = z.infer<typeof BriefSchema>;
 export type ParsedFinding = z.infer<typeof FindingSchema>;
+export type ArchitectureReview = z.infer<typeof ArchitectureReviewSchema>;
 export type ToolkitOutput = z.infer<typeof ToolkitOutputSchema>;
 
 export interface ParseResult {
   brief: Brief | null;
   findings: ParsedFinding[];
+  architecture: ArchitectureReview | null;
   rawOutput: string;
   parseErrors: string[];
   isPartial: boolean;
@@ -71,6 +94,7 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     return {
       brief: null,
       findings: [],
+      architecture: null,
       rawOutput: rawJson,
       parseErrors: ['Invalid JSON'],
       isPartial: false,
@@ -129,6 +153,7 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
               return {
                 brief: null,
                 findings: [],
+                architecture: null,
                 rawOutput: rawJson,
                 parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
                 isPartial: false,
@@ -138,6 +163,7 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
             return {
               brief: null,
               findings: [],
+              architecture: null,
               rawOutput: rawJson,
               parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
               isPartial: false,
@@ -157,6 +183,7 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     return {
       brief: fullResult.data.brief,
       findings,
+      architecture: fullResult.data.architecture ?? null,
       rawOutput: rawJson,
       parseErrors: [],
       isPartial: false,
@@ -167,6 +194,7 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
   const parseErrors: string[] = [];
   let brief: Brief | null = null;
   let findings: ParsedFinding[] = [];
+  let architecture: ArchitectureReview | null = null;
   let hasAnySuccess = false;
 
   const obj = parsed as Record<string, unknown>;
@@ -211,9 +239,21 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     parseErrors.push('Missing or invalid findings field');
   }
 
+  // Try parsing architecture (optional — old outputs won't have it)
+  if (obj && typeof obj === 'object' && 'architecture' in obj) {
+    const archResult = ArchitectureReviewSchema.safeParse(obj.architecture);
+    if (archResult.success) {
+      architecture = archResult.data;
+      hasAnySuccess = true;
+    } else {
+      parseErrors.push(`Architecture validation failed: ${archResult.error.message}`);
+    }
+  }
+
   return {
     brief,
     findings,
+    architecture,
     rawOutput: rawJson,
     parseErrors,
     isPartial: hasAnySuccess,
