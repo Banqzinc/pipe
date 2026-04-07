@@ -318,4 +318,30 @@ export class GitHubClient {
       { threadId: threadNodeId }
     );
   }
+
+  /** List repositories accessible to the authenticated token, optionally filtered by org. */
+  async listRepos(org?: string): Promise<Array<{ owner: string; name: string; isPrivate: boolean }>> {
+    const results: Array<{ owner: string; name: string; isPrivate: boolean }> = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const path = org
+        ? `/orgs/${org}/repos?per_page=${perPage}&page=${page}&sort=full_name`
+        : `/user/repos?per_page=${perPage}&page=${page}&sort=full_name&affiliation=owner,organization_member`;
+
+      const repos = await this.request<
+        Array<{ full_name: string; owner: { login: string }; name: string; private: boolean }>
+      >(path);
+
+      for (const r of repos) {
+        results.push({ owner: r.owner.login, name: r.name, isPrivate: r.private });
+      }
+
+      if (repos.length < perPage) break;
+      page++;
+    }
+
+    return results;
+  }
 }

@@ -10,9 +10,23 @@ export interface RepoListItem {
   updated_at: string;
 }
 
+export interface AvailableRepo {
+  github_owner: string;
+  github_name: string;
+  is_private: boolean;
+}
+
 export function useRepos() {
   return useQuery({
     queryKey: ['repos'],
     queryFn: () => api.get<RepoListItem[]>('/repos'),
+  });
+}
+
+export function useAvailableRepos(enabled: boolean) {
+  return useQuery({
+    queryKey: ['repos', 'available'],
+    queryFn: () => api.get<AvailableRepo[]>('/repos/available'),
+    enabled,
   });
 }
