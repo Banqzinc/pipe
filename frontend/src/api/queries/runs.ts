@@ -45,6 +45,26 @@ export interface RiskSignals {
   signals: RiskSignal[];
 }
 
+export interface ArchPattern {
+  name: string;
+  description: string;
+  assessment: 'good' | 'mixed' | 'problematic';
+}
+
+export interface ArchConcern {
+  title: string;
+  severity: 'high' | 'medium' | 'low';
+  description: string;
+  affected_files: string[];
+}
+
+export interface ArchitectureReview {
+  summary: string;
+  patterns: ArchPattern[];
+  concerns: ArchConcern[];
+  module_diagram: string | null;
+}
+
 export interface StackPr {
   id: string;
   github_pr_number: number;
@@ -64,6 +84,7 @@ export interface RunDetail {
   stack_id: string | null;
   stack_prs?: StackPr[];
   brief: Brief | null;
+  architecture_review: ArchitectureReview | null;
   risk_signals: RiskSignals | null;
   error_message: string | null;
   prompt: string | null;

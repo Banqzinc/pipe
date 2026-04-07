@@ -18,6 +18,7 @@ import { usePRDiff } from '../../api/queries/diff.ts';
 import { useApprovePR } from '../../api/mutations/approve.ts';
 import { useReplyToComment, useResolveThread } from '../../api/mutations/comments.ts';
 import { ReviewBrief } from '../../components/run/review-brief.tsx';
+import { ArchitectureReviewPanel } from '../../components/run/architecture-review.tsx';
 import { FindingList } from '../../components/run/finding-list.tsx';
 import { DiffViewer } from '../../components/diff/diff-viewer.tsx';
 import { StaleBanner } from '../../components/run/stale-banner.tsx';
@@ -644,6 +645,16 @@ function RunPage() {
                   </pre>
                 )}
               </div>
+            )}
+
+            {/* Brief + Risk Signals */}
+            {(run.brief || run.risk_signals) && (
+              <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
+            )}
+
+            {/* Architecture Review */}
+            {run.architecture_review && (
+              <ArchitectureReviewPanel review={run.architecture_review} runId={id} />
             )}
 
             {/* View toggle */}

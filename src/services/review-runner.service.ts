@@ -258,10 +258,11 @@ export class ReviewRunner {
 
     runEventBus.emit(runId, { type: 'phase', phase: 'parsing', message: 'Parsing findings...' });
 
-    // 7. Store brief in run record
+    // 7. Store brief + architecture in run record
     // 9. Store raw output in toolkit_raw_output
     await runRepo.update(runId, {
       brief: parseResult.brief as any,
+      architecture_review: parseResult.architecture as any,
       toolkit_raw_output: rawOutput,
     });
 
