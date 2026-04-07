@@ -30,7 +30,7 @@ function RunPage() {
   const router = useRouter();
 
   // View mode toggle — default to diff so annotations are visible as sidebar
-  const [viewMode, setViewMode] = useState<'findings' | 'diff'>('diff');
+  const [viewMode, setViewMode] = useState<'findings' | 'architecture' | 'diff' | 'debug'>('findings');
 
   // Stack PR filter state (null = show all)
   const [selectedPrId, setSelectedPrId] = useState<string | null>(null);
@@ -593,70 +593,6 @@ function RunPage() {
               </div>
             )}
 
-            {/* Raw Output */}
-            {run.cli_output && (
-              <div className="rounded-lg border border-border">
-                <button
-                  type="button"
-                  onClick={() => setRawOutputExpanded(!rawOutputExpanded)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
-                >
-                  <svg
-                    className={`w-4 h-4 transition-transform ${rawOutputExpanded ? 'rotate-90' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                  Raw Output
-                </button>
-                {rawOutputExpanded && (
-                  <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
-                    {run.cli_output}
-                  </pre>
-                )}
-              </div>
-            )}
-
-            {/* View Prompt */}
-            {run.prompt && (
-              <div className="rounded-lg border border-border">
-                <button
-                  type="button"
-                  onClick={() => setPromptExpanded(!promptExpanded)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
-                >
-                  <svg
-                    className={`w-4 h-4 transition-transform ${promptExpanded ? 'rotate-90' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                  View Prompt
-                </button>
-                {promptExpanded && (
-                  <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
-                    {run.prompt}
-                  </pre>
-                )}
-              </div>
-            )}
-
-            {/* Brief + Risk Signals */}
-            {(run.brief || run.risk_signals) && (
-              <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
-            )}
-
-            {/* Architecture Review */}
-            {run.architecture_review && (
-              <ArchitectureReviewPanel review={run.architecture_review} runId={id} />
-            )}
-
             {/* View toggle */}
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
               <button
@@ -670,6 +606,19 @@ function RunPage() {
               >
                 Findings ({selectedPrId ? filteredFindings.length : counts.total})
               </button>
+              {(run.architecture_review || run.brief) && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('architecture')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    viewMode === 'architecture'
+                      ? 'bg-card text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Architecture
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setViewMode('diff')}
@@ -681,6 +630,19 @@ function RunPage() {
               >
                 Diff
               </button>
+              {(run.cli_output || run.prompt) && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('debug')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    viewMode === 'debug'
+                      ? 'bg-card text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Debug
+                </button>
+              )}
             </div>
 
             {viewMode === 'findings' && (
@@ -748,6 +710,22 @@ function RunPage() {
               </>
             )}
 
+            {viewMode === 'architecture' && (
+              <div className="space-y-4">
+                {(run.brief || run.risk_signals) && (
+                  <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
+                )}
+                {run.architecture_review && (
+                  <ArchitectureReviewPanel review={run.architecture_review} runId={id} />
+                )}
+                {!run.brief && !run.risk_signals && !run.architecture_review && (
+                  <p className="text-sm text-muted-foreground py-4">
+                    No architecture review data available for this run.
+                  </p>
+                )}
+              </div>
+            )}
+
             {viewMode === 'diff' && (
               diffData ? (
                 <DiffViewer
@@ -773,6 +751,61 @@ function RunPage() {
                   <span className="text-muted-foreground text-sm">Loading diff...</span>
                 </div>
               )
+            )}
+
+            {viewMode === 'debug' && (
+              <div className="space-y-4">
+                {run.cli_output && (
+                  <div className="rounded-lg border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setRawOutputExpanded(!rawOutputExpanded)}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+                    >
+                      <svg
+                        className={`w-4 h-4 transition-transform ${rawOutputExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      Raw Output
+                    </button>
+                    {rawOutputExpanded && (
+                      <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                        {run.cli_output}
+                      </pre>
+                    )}
+                  </div>
+                )}
+                {run.prompt && (
+                  <div className="rounded-lg border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setPromptExpanded(!promptExpanded)}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+                    >
+                      <svg
+                        className={`w-4 h-4 transition-transform ${promptExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      View Prompt
+                    </button>
+                    {promptExpanded && (
+                      <pre className="px-4 pb-4 text-xs text-muted-foreground font-mono whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                        {run.prompt}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}

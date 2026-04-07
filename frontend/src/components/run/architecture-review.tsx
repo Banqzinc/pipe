@@ -23,7 +23,33 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
     let cancelled = false;
 
     import('mermaid').then(({ default: mermaid }) => {
-      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#1a1a2e',
+          primaryColor: '#6366f1',
+          primaryTextColor: '#e2e8f0',
+          primaryBorderColor: '#4f46e5',
+          lineColor: '#64748b',
+          secondaryColor: '#1e293b',
+          tertiaryColor: '#0f172a',
+          nodeTextColor: '#e2e8f0',
+          mainBkg: '#1e293b',
+          nodeBorder: '#475569',
+          clusterBkg: '#0f172a',
+          clusterBorder: '#334155',
+          titleColor: '#e2e8f0',
+          edgeLabelBackground: '#1e293b',
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: 'basis',
+          rankSpacing: 60,
+          nodeSpacing: 40,
+        },
+      });
       mermaid
         .render(`mermaid-${id}`, source)
         .then(({ svg }) => {
