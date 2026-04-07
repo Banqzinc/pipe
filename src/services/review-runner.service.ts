@@ -645,6 +645,10 @@ export async function buildStackPrompt(
   parts.push(
     'Look for: cross-PR inconsistencies, missing integration points, duplicated code across PRs, and issues that only become visible when viewing the full stack.',
   );
+  parts.push('');
+  parts.push(
+    'CRITICAL REMINDER: Your final output MUST be a single JSON object with "brief" and "findings" fields matching the schema above. Do NOT output plain text, markdown, or conversational responses. Output ONLY the JSON object.',
+  );
 
   return parts.join('\n');
 }
