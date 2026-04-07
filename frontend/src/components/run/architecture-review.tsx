@@ -28,23 +28,23 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
         theme: 'dark',
         themeVariables: {
           darkMode: true,
-          background: '#1a1a2e',
-          primaryColor: '#6366f1',
+          background: '#0f172a',
+          primaryColor: '#334155',
           primaryTextColor: '#e2e8f0',
-          primaryBorderColor: '#4f46e5',
+          primaryBorderColor: '#475569',
           lineColor: '#64748b',
           secondaryColor: '#1e293b',
           tertiaryColor: '#0f172a',
           nodeTextColor: '#e2e8f0',
-          mainBkg: '#1e293b',
-          nodeBorder: '#475569',
-          clusterBkg: '#0f172a',
-          clusterBorder: '#334155',
+          mainBkg: '#334155',
+          nodeBorder: '#64748b',
+          clusterBkg: '#1e293b',
+          clusterBorder: '#475569',
           titleColor: '#e2e8f0',
           edgeLabelBackground: '#1e293b',
         },
         flowchart: {
-          htmlLabels: true,
+          htmlLabels: false,
           curve: 'basis',
           rankSpacing: 60,
           nodeSpacing: 40,
@@ -84,7 +84,12 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
     );
   }
 
-  return <div ref={containerRef} className="overflow-x-auto" />;
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-x-auto [&_text]:!fill-slate-200 [&_.nodeLabel]:!text-slate-200 [&_.edgeLabel]:!text-slate-300 [&_.label]:!text-slate-200"
+    />
+  );
 }
 
 interface ArchitectureReviewPanelProps {
@@ -98,6 +103,13 @@ export function ArchitectureReviewPanel({ review, runId }: ArchitectureReviewPan
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium text-gray-300">Architecture Review</h3>
+
+      {/* Module Diagram — shown first for visual overview */}
+      {review.module_diagram && (
+        <CollapsibleSection title="Module Dependencies" colorCls="text-purple-400" defaultOpen>
+          <MermaidDiagram source={review.module_diagram} id={runId} />
+        </CollapsibleSection>
+      )}
 
       {/* Summary */}
       <p className="text-sm text-gray-400">{review.summary}</p>
@@ -161,13 +173,6 @@ export function ArchitectureReviewPanel({ review, runId }: ArchitectureReviewPan
               </div>
             ))}
           </div>
-        </CollapsibleSection>
-      )}
-
-      {/* Module Diagram */}
-      {review.module_diagram && (
-        <CollapsibleSection title="Module Dependencies" colorCls="text-purple-400" defaultOpen>
-          <MermaidDiagram source={review.module_diagram} id={runId} />
         </CollapsibleSection>
       )}
     </div>

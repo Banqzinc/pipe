@@ -712,11 +712,11 @@ function RunPage() {
 
             {viewMode === 'architecture' && (
               <div className="space-y-4">
-                {(run.brief || run.risk_signals) && (
-                  <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
-                )}
                 {run.architecture_review && (
                   <ArchitectureReviewPanel review={run.architecture_review} runId={id} />
+                )}
+                {(run.brief || run.risk_signals) && (
+                  <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
                 )}
                 {!run.brief && !run.risk_signals && !run.architecture_review && (
                   <p className="text-sm text-muted-foreground py-4">

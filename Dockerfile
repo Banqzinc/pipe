@@ -59,6 +59,11 @@ ENV PIPE_REPOS_DIR=/app/repos
 
 EXPOSE 3100
 
+# Entrypoint restores Claude CLI config from backup if missing
+COPY scripts/entrypoint.sh /app/scripts/entrypoint.sh
+RUN chmod +x /app/scripts/entrypoint.sh
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+
 # Start server — op run resolves secrets from 1Password via env.default
 # Requires OP_SERVICE_ACCOUNT_TOKEN and DEPLOY_ENV in the environment
 CMD ["op", "run", "--env-file=env.default", "--no-masking", "--", "node", "dist/index.js"]
