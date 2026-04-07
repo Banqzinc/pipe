@@ -488,7 +488,23 @@ export class ReviewRunner {
           // Return the result event JSON — parseToolkitOutput handles the envelope
           resolve(resultLine);
         } else {
-          // Fallback: return raw output
+          // Fallback: scan raw output for a result event line (NDJSON stream)
+          const lines = rawOutput.split('\n');
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const l = lines[i].trim();
+            if (!l) continue;
+            try {
+              const evt = JSON.parse(l);
+              if (evt.type === 'result') {
+                resolve(l);
+                return;
+              }
+            } catch {
+              // skip non-JSON lines
+            }
+          }
+          // No result event found — return raw output and let parser handle it
+          logger.warn({ runId, rawOutputLength: rawOutput.length }, 'No result event found in CLI output');
           resolve(rawOutput);
         }
       });
