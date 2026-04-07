@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRepos, useAvailableRepos } from '../../api/queries/repos.ts';
-import type { AvailableRepo } from '../../api/queries/repos.ts';
 import {
   useCreateRepo,
   useUpdateRepo,
@@ -60,10 +59,8 @@ function AddRepoDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" size="sm">
-          Add Repository
-        </Button>
+      <DialogTrigger render={<Button variant="secondary" size="sm" />}>
+        Add Repository
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

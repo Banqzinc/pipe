@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import type { Brief, RiskSignals } from '../../api/queries/runs.ts';
+import { CollapsibleSection } from '../common/collapsible-section.tsx';
 
 const riskColors: Record<string, string> = {
   high: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -15,34 +15,6 @@ function RiskBadge({ signal }: { signal: { name: string; level: string } }) {
     >
       {signal.name}
     </span>
-  );
-}
-
-function CollapsibleSection({
-  title,
-  colorCls,
-  defaultOpen,
-  children,
-}: {
-  title: string;
-  colorCls: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen ?? false);
-
-  return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium ${colorCls} hover:bg-gray-800/50 transition-colors`}
-      >
-        <span>{title}</span>
-        <span className="text-gray-500">{open ? '\u25B2' : '\u25BC'}</span>
-      </button>
-      {open && <div className="px-3 py-2 space-y-1">{children}</div>}
-    </div>
   );
 }
 
