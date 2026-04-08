@@ -90,6 +90,12 @@ export class PipeClient {
   async getPRComments(prId: string): Promise<CommentsResponse> {
     return this.request<CommentsResponse>('GET', `/prs/${prId}/comments`);
   }
+
+  // --- Stack ---
+
+  async getStack(prId: string): Promise<StackResponse> {
+    return this.request<StackResponse>('GET', `/prs/${prId}/stack`);
+  }
 }
 
 // --- Types ---
@@ -232,6 +238,24 @@ export interface FindingsResponse {
     edited: number;
     posted: number;
   };
+}
+
+export interface StackPR {
+  id: string;
+  github_pr_number: number;
+  title: string;
+  author: string;
+  branch_name: string;
+  base_branch: string;
+  status: string;
+  head_sha: string;
+  stack_id: string | null;
+  stack_position: number | null;
+  stack_size: number | null;
+}
+
+export interface StackResponse {
+  stack: StackPR[];
 }
 
 export interface CommentThread {

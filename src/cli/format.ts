@@ -4,13 +4,14 @@ import type {
   Finding,
   CommentThread,
   IssueComment,
+  StackPR,
 } from './api';
 
 // --- ANSI colors ---
 
-const RESET = '\x1b[0m';
-const BOLD = '\x1b[1m';
-const DIM = '\x1b[2m';
+export const RESET = '\x1b[0m';
+export const BOLD = '\x1b[1m';
+export const DIM = '\x1b[2m';
 const RED = '\x1b[31m';
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
@@ -282,6 +283,10 @@ export function formatPRList(prs: PRListItem[]): string {
   }
 
   return lines.join('\n');
+}
+
+export function formatStackPRHeader(pr: StackPR): string {
+  return `\n${BOLD}${CYAN}PR #${pr.github_pr_number}${RESET} ${pr.title} ${DIM}(${pr.stack_position}/${pr.stack_size})${RESET}`;
 }
 
 export function formatJSON(data: unknown): string {

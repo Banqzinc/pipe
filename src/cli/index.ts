@@ -6,12 +6,16 @@ import { loadCliConfig, saveCliConfig, requireConfig } from './config';
 import { ghAuthStatus, ghAuthToken, ghRepoList, ghCreateWebhook, ghDeleteWebhook } from './gh';
 import { PipeClient } from './api';
 import {
+  BOLD,
+  RESET,
+  DIM,
   formatPRHeader,
   formatArchitecture,
   formatBrief,
   formatFindings,
   formatComments,
   formatPRList,
+  formatStackPRHeader,
   formatJSON,
 } from './format';
 
@@ -37,6 +41,7 @@ const noWebhook = extractBool(argv, '--no-webhook');
 const findingsOnly = extractBool(argv, '--findings');
 const archOnly = extractBool(argv, '--arch');
 const commentsOnly = extractBool(argv, '--comments');
+const stackMode = extractBool(argv, '--stack');
 const jsonOutput = extractBool(argv, '--json');
 const [command, subcommand, arg] = argv;
 
@@ -87,7 +92,7 @@ Commands:
                          [--repo owner/name]
   pr <number>            Show review results for a PR
                          [--findings] [--arch] [--comments]
-                         [--run <id>] [--json]
+                         [--stack] [--run <id>] [--json]
 
   repo add [owner/name]  Connect a GitHub repo to Pipe
                          [--owner org] [--no-webhook]
@@ -219,7 +224,99 @@ async function prShow(prNumber: string) {
 
   const run = await client.getRun(runId);
 
-  // JSON output — fetch everything and dump
+  // --- Stack mode ---
+  if (stackMode) {
+    const stackData = await client.getStack(pr.id);
+    if (stackData.stack.length === 0) {
+      console.error(`PR #${num} is not part of a stack.`);
+      process.exit(1);
+    }
+
+    // Get all PR list items for finding their IDs
+    const allPRs = data.pull_requests;
+
+    if (jsonOutput) {
+      const findingsData = await client.listFindings(runId).catch(() => null);
+      const stackComments: Record<number, unknown> = {};
+      for (const sp of stackData.stack) {
+        const match = allPRs.find((p) => p.github_pr_number === sp.github_pr_number);
+        if (match) {
+          stackComments[sp.github_pr_number] = await client.getPRComments(match.id).catch(() => null);
+        }
+      }
+      console.log(formatJSON({ run, stack: stackData.stack, findings: findingsData, comments: stackComments }));
+      return;
+    }
+
+    const sections: string[] = [];
+    const showAll = !findingsOnly && !archOnly && !commentsOnly;
+
+    // Stack header
+    sections.push(`${BOLD}Stack Review${RESET} ${DIM}(${stackData.stack.length} PRs)${RESET}`);
+    sections.push(formatPRHeader(run));
+
+    // Architecture (stack-level, shown once)
+    if (showAll || archOnly) {
+      if (run.architecture_review) {
+        sections.push(formatArchitecture(run.architecture_review));
+      }
+      if (run.brief) {
+        sections.push(formatBrief(run.brief));
+      }
+    }
+
+    // Findings + comments grouped by PR
+    let allFindings: import('./api').Finding[] = [];
+    if (showAll || findingsOnly) {
+      try {
+        const findingsData = await client.listFindings(runId);
+        allFindings = findingsData.findings;
+      } catch {
+        sections.push('\nCould not load findings.');
+      }
+    }
+
+    for (const sp of stackData.stack) {
+      sections.push(formatStackPRHeader(sp));
+
+      // Findings for this PR
+      if ((showAll || findingsOnly) && allFindings.length > 0) {
+        const prFindings = allFindings.filter((f) => f.pr_number === sp.github_pr_number);
+        if (prFindings.length > 0) {
+          sections.push(formatFindings(prFindings));
+        }
+      }
+
+      // Comments for this PR
+      if (showAll || commentsOnly) {
+        const match = allPRs.find((p) => p.github_pr_number === sp.github_pr_number);
+        if (match) {
+          try {
+            const commentsData = await client.getPRComments(match.id);
+            if (commentsData.threads.length > 0 || commentsData.issue_comments.length > 0) {
+              sections.push(formatComments(commentsData.threads, commentsData.issue_comments));
+            }
+          } catch {
+            // skip — can't load comments for this PR
+          }
+        }
+      }
+    }
+
+    // Show unattributed findings (no pr_number)
+    if ((showAll || findingsOnly) && allFindings.length > 0) {
+      const unattributed = allFindings.filter((f) => !f.pr_number);
+      if (unattributed.length > 0) {
+        sections.push(`\n${BOLD}General findings (not attributed to a specific PR)${RESET}`);
+        sections.push(formatFindings(unattributed));
+      }
+    }
+
+    console.log(sections.join('\n'));
+    return;
+  }
+
+  // --- Single PR mode ---
   if (jsonOutput) {
     const [findingsData, commentsData] = await Promise.all([
       client.listFindings(runId).catch(() => null),
@@ -229,7 +326,6 @@ async function prShow(prNumber: string) {
     return;
   }
 
-  // Formatted output
   const sections: string[] = [];
   const showAll = !findingsOnly && !archOnly && !commentsOnly;
 
