@@ -41,7 +41,7 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
           edgeLabelBackground: '#1e293b',
         },
         flowchart: {
-          htmlLabels: true,
+          htmlLabels: false, // SVG text, not foreignObject HTML — DOMPurify strips foreignObject
           curve: 'basis',
           rankSpacing: 60,
           nodeSpacing: 40,
@@ -59,16 +59,10 @@ function MermaidDiagram({ source, id }: { source: string; id: string }) {
             wrapper.innerHTML = sanitized;
             containerRef.current.appendChild(wrapper);
 
-            // Post-process: force all text to be readable on dark backgrounds
+            // Post-process: force all SVG text to be readable on dark backgrounds
             const textEls = containerRef.current.querySelectorAll('text, tspan');
             textEls.forEach((el) => {
               el.setAttribute('fill', '#e2e8f0');
-            });
-            const htmlEls = containerRef.current.querySelectorAll(
-              'span, .nodeLabel, .edgeLabel, .label, foreignObject div, foreignObject p',
-            );
-            htmlEls.forEach((el) => {
-              (el as HTMLElement).style.color = '#e2e8f0';
             });
           }
         })
