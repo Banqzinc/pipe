@@ -1,5 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
-import DOMPurify from 'dompurify';
 import type { ArchitectureReview } from '../../api/queries/runs.ts';
 import { CollapsibleSection } from '../common/collapsible-section.tsx';
 
@@ -15,99 +13,16 @@ const severityColors: Record<string, string> = {
   low: 'text-blue-400',
 };
 
-function MermaidDiagram({ source, id }: { source: string; id: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    import('mermaid').then(({ default: mermaid }) => {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: 'dark',
-        themeVariables: {
-          darkMode: true,
-          background: '#0f172a',
-          primaryColor: '#334155',
-          primaryBorderColor: '#475569',
-          lineColor: '#64748b',
-          secondaryColor: '#1e293b',
-          tertiaryColor: '#0f172a',
-          mainBkg: '#334155',
-          nodeBorder: '#64748b',
-          clusterBkg: '#1e293b',
-          clusterBorder: '#475569',
-          edgeLabelBackground: '#1e293b',
-        },
-        flowchart: {
-          htmlLabels: false, // SVG text, not foreignObject HTML — DOMPurify strips foreignObject
-          curve: 'basis',
-          rankSpacing: 60,
-          nodeSpacing: 40,
-        },
-      });
-      mermaid
-        .render(`mermaid-${id}`, source)
-        .then(({ svg }) => {
-          if (!cancelled && containerRef.current) {
-            const sanitized = DOMPurify.sanitize(svg, {
-              USE_PROFILES: { svg: true, svgFilters: true },
-            });
-            containerRef.current.textContent = '';
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = sanitized;
-            containerRef.current.appendChild(wrapper);
-
-            // Post-process: force all SVG text to be readable on dark backgrounds
-            const textEls = containerRef.current.querySelectorAll('text, tspan');
-            textEls.forEach((el) => {
-              el.setAttribute('fill', '#e2e8f0');
-            });
-          }
-        })
-        .catch((err) => {
-          if (!cancelled) setError(String(err));
-        });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [source, id]);
-
-  if (error) {
-    return (
-      <div className="space-y-2">
-        <p className="text-xs text-red-400">Failed to render diagram</p>
-        <pre className="text-xs text-gray-400 bg-gray-900 rounded p-3 overflow-x-auto">
-          {source}
-        </pre>
-      </div>
-    );
-  }
-
-  return <div ref={containerRef} className="overflow-x-auto" />;
-}
-
 interface ArchitectureReviewPanelProps {
   review: ArchitectureReview;
-  runId: string;
 }
 
-export function ArchitectureReviewPanel({ review, runId }: ArchitectureReviewPanelProps) {
+export function ArchitectureReviewPanel({ review }: ArchitectureReviewPanelProps) {
   const hasHighConcerns = review.concerns.some((c) => c.severity === 'high');
 
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium text-gray-300">Architecture Review</h3>
-
-      {/* Module Diagram — shown first for visual overview */}
-      {review.module_diagram && (
-        <CollapsibleSection title="Module Dependencies" colorCls="text-purple-400" defaultOpen>
-          <MermaidDiagram source={review.module_diagram} id={runId} />
-        </CollapsibleSection>
-      )}
 
       {/* Summary */}
       <p className="text-sm text-gray-400">{review.summary}</p>

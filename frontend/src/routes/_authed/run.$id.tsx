@@ -713,7 +713,7 @@ function RunPage() {
             {viewMode === 'architecture' && (
               <div className="space-y-4">
                 {run.architecture_review && (
-                  <ArchitectureReviewPanel review={run.architecture_review} runId={id} />
+                  <ArchitectureReviewPanel review={run.architecture_review} />
                 )}
                 {(run.brief || run.risk_signals) && (
                   <ReviewBrief brief={run.brief} riskSignals={run.risk_signals} />
