@@ -1,3 +1,4 @@
+import { jsonrepair } from 'jsonrepair';
 import { z } from 'zod';
 
 // --- Zod Schemas ---
@@ -128,36 +129,52 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
     }
 
     if (inner) {
+      let innerParsed = false;
+
       // Try parsing as-is first (model returned pure JSON)
       try {
         parsed = JSON.parse(inner);
+        innerParsed = true;
       } catch {
         // Strip markdown code fences if present.
         // Use greedy match to handle embedded code fences inside JSON string values.
         const fenceMatch = inner.match(/```(?:json)?\s*\n([\s\S]+)\n```/);
-        if (fenceMatch) {
+        const jsonText = fenceMatch ? fenceMatch[1].trim() : inner;
+
+        // Try strict parse, then jsonrepair for malformed LLM output (unescaped quotes, etc.)
+        try {
+          parsed = JSON.parse(jsonText);
+          innerParsed = true;
+        } catch {
           try {
-            parsed = JSON.parse(fenceMatch[1].trim());
+            parsed = JSON.parse(jsonrepair(jsonText));
+            innerParsed = true;
           } catch {
-            // Fence extraction failed — fall through to regex extraction
+            // jsonrepair failed — try regex extraction as last resort
           }
         }
 
         // Fallback: extract JSON object from raw text by matching outermost { ... }
-        if (!parsed) {
+        if (!innerParsed) {
           const jsonMatch = inner.match(/\{[\s\S]*"brief"[\s\S]*"findings"[\s\S]*\}/);
           if (jsonMatch) {
             try {
               parsed = JSON.parse(jsonMatch[0]);
+              innerParsed = true;
             } catch {
-              return {
-                brief: null,
-                findings: [],
-                architecture: null,
-                rawOutput: rawJson,
-                parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
-                isPartial: false,
-              };
+              try {
+                parsed = JSON.parse(jsonrepair(jsonMatch[0]));
+                innerParsed = true;
+              } catch {
+                return {
+                  brief: null,
+                  findings: [],
+                  architecture: null,
+                  rawOutput: rawJson,
+                  parseErrors: ['Failed to parse inner result JSON from CLI envelope'],
+                  isPartial: false,
+                };
+              }
             }
           } else {
             return {
