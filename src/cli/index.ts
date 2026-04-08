@@ -5,6 +5,15 @@ import readline from 'readline';
 import { loadCliConfig, saveCliConfig, requireConfig } from './config';
 import { ghAuthStatus, ghAuthToken, ghRepoList, ghCreateWebhook, ghDeleteWebhook } from './gh';
 import { PipeClient } from './api';
+import {
+  formatPRHeader,
+  formatArchitecture,
+  formatBrief,
+  formatFindings,
+  formatComments,
+  formatPRList,
+  formatJSON,
+} from './format';
 
 const argv = process.argv.slice(2);
 function extractFlag(args: string[], flag: string): string | undefined {
@@ -21,7 +30,14 @@ function extractBool(args: string[], flag: string): boolean {
   return true;
 }
 const ownerFlag = extractFlag(argv, '--owner');
+const filterFlag = extractFlag(argv, '--filter');
+const repoFlag = extractFlag(argv, '--repo');
+const runFlag = extractFlag(argv, '--run');
 const noWebhook = extractBool(argv, '--no-webhook');
+const findingsOnly = extractBool(argv, '--findings');
+const archOnly = extractBool(argv, '--arch');
+const commentsOnly = extractBool(argv, '--comments');
+const jsonOutput = extractBool(argv, '--json');
 const [command, subcommand, arg] = argv;
 
 async function main() {
@@ -30,6 +46,16 @@ async function main() {
       return login();
     case 'status':
       return status();
+    case 'pr':
+      if (subcommand === 'list') {
+        return prList();
+      }
+      if (subcommand) {
+        return prShow(subcommand);
+      }
+      console.error('Usage: pipe pr <number> or pipe pr list');
+      process.exit(1);
+      break;
     case 'repo':
       switch (subcommand) {
         case 'add':
@@ -55,6 +81,14 @@ function printHelp() {
 Commands:
   login                  Configure server URL + API key
   status                 Check gh auth + Pipe server connectivity
+
+  pr list                List PRs with review status
+                         [--filter needs_review|in_progress|completed]
+                         [--repo owner/name]
+  pr <number>            Show review results for a PR
+                         [--findings] [--arch] [--comments]
+                         [--run <id>] [--json]
+
   repo add [owner/name]  Connect a GitHub repo to Pipe
                          [--owner org] [--no-webhook]
   repo list              List connected repos
@@ -127,6 +161,115 @@ async function status() {
     console.log('  Status: unreachable');
   }
 }
+
+// --- PR commands ---
+
+async function prList() {
+  const config = requireConfig();
+  const client = new PipeClient(config);
+
+  // Resolve repo_id from --repo flag if provided
+  let repoId: string | undefined;
+  if (repoFlag) {
+    const repos = await client.listRepos();
+    const match = repos.find(
+      (r) => `${r.github_owner}/${r.github_name}` === repoFlag,
+    );
+    if (!match) {
+      console.error(`Repo ${repoFlag} not found. Run \`pipe repo list\` to see connected repos.`);
+      process.exit(1);
+    }
+    repoId = match.id;
+  }
+
+  const data = await client.listPRs(filterFlag ?? undefined, repoId);
+
+  if (jsonOutput) {
+    console.log(formatJSON(data.pull_requests));
+    return;
+  }
+
+  console.log(formatPRList(data.pull_requests));
+}
+
+async function prShow(prNumber: string) {
+  const num = parseInt(prNumber, 10);
+  if (Number.isNaN(num)) {
+    console.error(`Invalid PR number: ${prNumber}`);
+    process.exit(1);
+  }
+
+  const config = requireConfig();
+  const client = new PipeClient(config);
+
+  // Find the PR by number
+  const data = await client.listPRs();
+  const pr = data.pull_requests.find((p) => p.github_pr_number === num);
+  if (!pr) {
+    console.error(`PR #${num} not found. Make sure it's synced — check the UI or run \`pipe pr list\`.`);
+    process.exit(1);
+  }
+
+  // Get the latest run (or specific run via --run flag)
+  const runId = runFlag ?? pr.latest_run?.id;
+  if (!runId) {
+    console.error(`PR #${num} has no review runs yet. Trigger a review from the UI.`);
+    process.exit(1);
+  }
+
+  const run = await client.getRun(runId);
+
+  // JSON output — fetch everything and dump
+  if (jsonOutput) {
+    const [findingsData, commentsData] = await Promise.all([
+      client.listFindings(runId).catch(() => null),
+      client.getPRComments(pr.id).catch(() => null),
+    ]);
+    console.log(formatJSON({ run, findings: findingsData, comments: commentsData }));
+    return;
+  }
+
+  // Formatted output
+  const sections: string[] = [];
+  const showAll = !findingsOnly && !archOnly && !commentsOnly;
+
+  // Header (always shown)
+  sections.push(formatPRHeader(run));
+
+  // Architecture
+  if (showAll || archOnly) {
+    if (run.architecture_review) {
+      sections.push(formatArchitecture(run.architecture_review));
+    }
+    if (run.brief) {
+      sections.push(formatBrief(run.brief));
+    }
+  }
+
+  // Findings
+  if (showAll || findingsOnly) {
+    try {
+      const findingsData = await client.listFindings(runId);
+      sections.push(formatFindings(findingsData.findings));
+    } catch {
+      sections.push('\nCould not load findings.');
+    }
+  }
+
+  // Comments
+  if (showAll || commentsOnly) {
+    try {
+      const commentsData = await client.getPRComments(pr.id);
+      sections.push(formatComments(commentsData.threads, commentsData.issue_comments));
+    } catch {
+      sections.push('\nCould not load comments.');
+    }
+  }
+
+  console.log(sections.join('\n'));
+}
+
+// --- Repo commands ---
 
 async function repoAdd(nameWithOwner?: string) {
   const config = requireConfig();
