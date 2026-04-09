@@ -95,28 +95,91 @@ All variables are validated at startup via Zod in `src/config.ts`.
 
 GitHub auth is handled by the `gh` CLI (`gh auth login`). Claude auth is handled by the Claude CLI.
 
-## Adding a Repository
+## CLI
 
-Use the Pipe CLI to connect GitHub repos:
+Pipe includes a CLI for managing repos and viewing review results from the terminal.
+
+### Installation
+
+**From the project (recommended for contributors):**
 
 ```bash
-# Configure the CLI with your Pipe server URL and API key
+npm run build:cli    # Compile the CLI
+npx pipe --help      # Run via npx
+```
+
+**Global install (recommended for daily use):**
+
+```bash
+npm run build:cli
+npm link             # Creates a global `pipe` command
+pipe --help          # Now available globally
+```
+
+### Setup
+
+Point the CLI at your Pipe server (local or production):
+
+```bash
+# Local development
 pipe login
+# Server URL: http://localhost:3100
+# API key: (your PIPE_API_KEY)
 
-# Add a repo — lists your GitHub repos, creates a webhook, registers with Pipe, syncs open PRs
+# Production
+pipe login
+# Server URL: https://pipe.quidkey.com
+# API key: (your production PIPE_API_KEY)
+```
+
+Config is saved to `~/.config/pipe/config.json`. Run `pipe login` again to switch between environments.
+
+### Commands
+
+#### Viewing PRs and Reviews
+
+```bash
+# List PRs with review status
+pipe pr list
+pipe pr list --filter needs_review
+pipe pr list --repo Banqzinc/quidkey-monorepo
+
+# View full review for a PR (findings, architecture, comments)
+pipe pr 69
+
+# View specific sections
+pipe pr 69 --findings    # Only findings
+pipe pr 69 --arch        # Only architecture review
+pipe pr 69 --comments    # Only comment threads
+
+# View a specific run (not the latest)
+pipe pr 69 --run abc-123
+
+# JSON output (useful for piping to other tools)
+pipe pr 69 --json
+```
+
+#### Managing Repos
+
+```bash
+# Add a repo — lists your GitHub repos, creates a webhook, syncs open PRs
 pipe repo add
-
-# Or specify directly
-pipe repo add owner/name
+pipe repo add Banqzinc/quidkey-monorepo
+pipe repo add --owner Banqzinc              # Filter to a specific org
+pipe repo add --no-webhook                  # Skip webhook (local dev)
 
 # List connected repos
 pipe repo list
 
 # Remove a repo and clean up its webhook
-pipe repo remove owner/name
+pipe repo remove Banqzinc/quidkey-monorepo
 ```
 
-`pipe repo add` creates a webhook on GitHub (for `pull_request` events, HMAC-SHA256 signed) and triggers an initial sync of open PRs.
+#### Other
+
+```bash
+pipe status    # Check GitHub CLI auth + Pipe server connectivity
+```
 
 ## Development Commands
 

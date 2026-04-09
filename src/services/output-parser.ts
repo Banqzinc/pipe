@@ -84,6 +84,96 @@ function deduplicateFindings(findings: ParsedFinding[]): ParsedFinding[] {
   return result;
 }
 
+// --- JSON Repair for LLM output ---
+
+/**
+ * Repair unescaped double quotes inside JSON string values.
+ * LLMs occasionally produce JSON like: "body": "he said "hello" to her"
+ * where the inner quotes break JSON.parse. This function escapes them.
+ *
+ * Strategy: walk character by character, track whether we're inside a JSON
+ * string. When we see a `"` that closes a string, check if the next non-space
+ * character is a valid JSON structure char (`:`, `,`, `}`, `]`). If not,
+ * it's an unescaped interior quote — escape it and continue.
+ */
+function repairLlmJson(text: string): string {
+  const chars = [...text];
+  const result: string[] = [];
+  let inString = false;
+  let i = 0;
+
+  while (i < chars.length) {
+    const c = chars[i];
+
+    if (!inString) {
+      result.push(c);
+      if (c === '"') inString = true;
+      i++;
+      continue;
+    }
+
+    // We're inside a string
+    if (c === '\\') {
+      // Escaped character — push both and skip
+      result.push(c);
+      if (i + 1 < chars.length) {
+        result.push(chars[i + 1]);
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+
+    if (c === '"') {
+      // Is this the real end of the string, or an unescaped interior quote?
+      // Look ahead: skip whitespace, then check if next char is a JSON structural char
+      let j = i + 1;
+      while (j < chars.length && (chars[j] === ' ' || chars[j] === '\t')) j++;
+      const next = j < chars.length ? chars[j] : '';
+
+      // Valid string terminators: the char after the quote (after optional space) should be
+      // `,` (next field), `}` (end object), `]` (end array), `:` (was a key), or newline before those
+      if (next === ',' || next === '}' || next === ']' || next === ':' || next === '\n' || next === '\r' || next === '') {
+        // If next is newline, peek further to confirm it's structural
+        if (next === '\n' || next === '\r') {
+          let k = j;
+          while (k < chars.length && (chars[k] === '\n' || chars[k] === '\r' || chars[k] === ' ' || chars[k] === '\t')) k++;
+          const afterNewline = k < chars.length ? chars[k] : '';
+          if (afterNewline === ',' || afterNewline === '}' || afterNewline === ']' || afterNewline === '"' || afterNewline === '') {
+            // Real end of string
+            result.push(c);
+            inString = false;
+            i++;
+            continue;
+          }
+          // Not structural after newline — it's an interior quote
+          result.push('\\', '"');
+          i++;
+          continue;
+        }
+
+        // Real end of string
+        result.push(c);
+        inString = false;
+        i++;
+        continue;
+      }
+
+      // Not followed by a structural char — this is an unescaped interior quote
+      result.push('\\', '"');
+      i++;
+      continue;
+    }
+
+    // Regular character inside string
+    result.push(c);
+    i++;
+  }
+
+  return result.join('');
+}
+
 // --- Parser ---
 
 export function parseToolkitOutput(rawJson: string): ParseResult {
@@ -141,16 +231,23 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
         const fenceMatch = inner.match(/```(?:json)?\s*\n([\s\S]+)\n```/);
         const jsonText = fenceMatch ? fenceMatch[1].trim() : inner;
 
-        // Try strict parse, then jsonrepair for malformed LLM output (unescaped quotes, etc.)
+        // Try strict parse, then repair unescaped quotes, then jsonrepair
         try {
           parsed = JSON.parse(jsonText);
           innerParsed = true;
         } catch {
+          // Repair unescaped quotes in LLM output (e.g. "he said "hello" to her")
+          const repaired = repairLlmJson(jsonText);
           try {
-            parsed = JSON.parse(jsonrepair(jsonText));
+            parsed = JSON.parse(repaired);
             innerParsed = true;
           } catch {
-            // jsonrepair failed — try regex extraction as last resort
+            try {
+              parsed = JSON.parse(jsonrepair(repaired));
+              innerParsed = true;
+            } catch {
+              // All repair attempts failed — try regex extraction as last resort
+            }
           }
         }
 
@@ -158,12 +255,13 @@ export function parseToolkitOutput(rawJson: string): ParseResult {
         if (!innerParsed) {
           const jsonMatch = inner.match(/\{[\s\S]*"brief"[\s\S]*"findings"[\s\S]*\}/);
           if (jsonMatch) {
+            const repairedMatch = repairLlmJson(jsonMatch[0]);
             try {
-              parsed = JSON.parse(jsonMatch[0]);
+              parsed = JSON.parse(repairedMatch);
               innerParsed = true;
             } catch {
               try {
-                parsed = JSON.parse(jsonrepair(jsonMatch[0]));
+                parsed = JSON.parse(jsonrepair(repairedMatch));
                 innerParsed = true;
               } catch {
                 return {
